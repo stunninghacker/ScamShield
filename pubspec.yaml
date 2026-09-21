@@ -1,0 +1,31 @@
+name: scamshield
+description: ScamShield — offline on-device scam/phishing shield. Nothing leaves your phone.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # On-device LLM (MediaPipe LLM Inference wrapper). Model file bundled locally.
+  flutter_gemma: ^0.9.0
+  # Offline OCR (on-device text recognition, no network after model on-device)
+  google_mlkit_text_recognition: ^0.15.0
+  # Receive shared text + images from other apps (SMS/WhatsApp -> Share -> ScamShield)
+  receive_sharing_intent: ^1.8.0
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Place your Gemma .task file here, e.g. assets/models/gemma-3-1b-it.task
+    # See README.md "Where to place the Gemma model file".
+    - assets/models/
