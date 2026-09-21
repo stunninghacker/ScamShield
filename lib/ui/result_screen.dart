@@ -1,124 +1,356 @@
 import 'package:flutter/material.dart';
-import '../models/scan_result.dart';
+import 'package:flutter/services.dart';
+import '../analysis/scan_pipeline.dart';
+import '../analysis/verdict_report.dart';
+import '../events/threat_events.dart';
+import '../models/verdict.dart';
+import '../settings/app_settings.dart';
 import 'widgets/highlighted_text.dart';
+import 'widgets/risk_widgets.dart';
 
-class ResultScreen extends StatelessWidget {
-  final ScanResult result;
-  const ResultScreen({super.key, required this.result});
+/// Evidence-first result: verdict → why (weighted evidence) → action.
+/// [staged] reveals sections progressively for Demo Mode drama.
+class ResultScreen extends StatefulWidget {
+  final PipelineResult result;
+  final bool staged;
+  const ResultScreen({super.key, required this.result, this.staged = false});
 
-  (Color, Color, IconData, String) _verdictStyle() {
-    switch (result.verdict) {
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  int _stage = 99; // sections revealed so far when staged
+
+  @override
+  void initState() {
+    super.initState();
+    // Haptic punch scaled to risk (surprise, but trustworthy).
+    switch (widget.result.verdict) {
       case Verdict.dangerous:
-        return (const Color(0xFFB71C1C), const Color(0xFFFFEBEE),
-            Icons.dangerous_outlined, 'Likely a scam');
+        HapticFeedback.heavyImpact();
+        break;
       case Verdict.suspicious:
-        return (const Color(0xFFE65100), const Color(0xFFFFF3E0),
-            Icons.warning_amber_outlined, 'Looks suspicious');
+        HapticFeedback.mediumImpact();
+        break;
       case Verdict.safe:
-        return (const Color(0xFF1B5E20), const Color(0xFFE8F5E9),
-            Icons.verified_outlined, 'Looks genuine');
+        HapticFeedback.lightImpact();
+        break;
     }
+    if (widget.staged) {
+      _stage = 0;
+      for (var i = 1; i <= 3; i++) {
+        Future.delayed(Duration(milliseconds: 700 * i), () {
+          if (mounted) setState(() => _stage = i);
+        });
+      }
+      Future.delayed(const Duration(milliseconds: 2200), () {
+        if (mounted) setState(() => _stage = 99);
+      });
+    }
+  }
+
+  Future<void> _action(String label, String detail) async {
+    if (widget.result.eventId.isNotEmpty) {
+      await EventLog().setAction(widget.result.eventId, label);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Marked as "$label". $detail')));
+    setState(() {});
+  }
+
+  void _verifySheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Verify safely',
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text(
+                '1. Open the official bank / courier app yourself — never the link above.\n'
+                '2. Call the number printed on your card or the official site — never the callback number.\n'
+                '3. Ask: "Did you contact me?" using an independently verified channel.'),
+            const SizedBox(height: 12),
+            FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _action('Verify',
+                      'Use only official apps and numbers.');
+                },
+                child: const Text('I understand')),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final (fg, bg, icon, label) = _verdictStyle();
+    final r = widget.result;
+    final c = riskColor(r.verdict, context);
+    final bg = riskBg(r.verdict, context);
+    final parts = contributionsFor(r.breakdown);
+    final family = AppSettings.instance.familyMode;
+    final staged = widget.staged;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Result — on-device')),
+      appBar: AppBar(
+        title: Text('${r.category} — on-device'),
+        actions: [
+          IconButton(
+            tooltip: 'Copy report',
+            icon: const Icon(Icons.copy_outlined),
+            onPressed: () {
+              final buf = StringBuffer()
+                ..writeln('ScamShield risk score: ${r.score}/100 '
+                    '(${r.verdict.riskWord} RISK)')
+                ..writeln('Category: ${r.category}')
+                ..writeln('Evidence:');
+              for (final p in parts) {
+                buf.writeln('+${p.weight} ${p.label}');
+              }
+              buf
+                ..writeln('What to do: ${r.whatToDo}')
+                ..writeln(
+                    'Assessment only — cannot guarantee fraud.');
+              Clipboard.setData(ClipboardData(text: buf.toString()));
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Report copied.')));
+            },
+          )
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 1 · Verdict banner.
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
                 color: bg, borderRadius: BorderRadius.circular(12)),
             child: Row(
               children: [
-                Icon(icon, color: fg, size: 40),
+                Icon(riskIcon(r.verdict), color: c, size: 44),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(label,
+                      Text(
+                          r.verdict == Verdict.dangerous
+                              ? '🚨 HIGH RISK'
+                              : r.verdict == Verdict.suspicious
+                                  ? '⚠️ MEDIUM RISK'
+                                  : '✅ LOW RISK',
                           style: TextStyle(
-                              color: fg,
+                              color: c,
                               fontSize: 22,
                               fontWeight: FontWeight.w800)),
-                      Text('Score ${result.score}/100 • '
-                          '${result.signals.length} signal(s) • '
-                          '${result.llmUsed ? "Gemma on-device" : "built-in explainer"}',
-                          style: TextStyle(color: fg)),
+                      Text(r.verdict.label,
+                          style: TextStyle(color: c, fontSize: 15)),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          RiskBadge(verdict: r.verdict, compact: true),
+                          Chip(
+                              label: Text(r.category),
+                              visualDensity:
+                                  VisualDensity.compact),
+                          Chip(
+                              label: Text(r.source),
+                              visualDensity:
+                                  VisualDensity.compact),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Text('Message (suspicious parts highlighted)',
-              style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 6),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: HighlightedText(
-                  source: result.sourceText, signals: result.signals),
-            ),
-          ),
-          if (result.signals.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ScoreBar(score: r.score, verdict: r.verdict),
+          if (r.confidence > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+                'Confidence ${(r.confidence).toStringAsFixed(2)} (heuristic) · '
+                'analyzed on-device in ${r.latencyMs} ms · '
+                '${r.llmUsed ? 'explained by Gemma' : 'built-in explainer'}',
+                style:
+                    const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+          // Family STOP card.
+          if (family && r.verdict != Verdict.safe) ...[
+            const SizedBox(height: 12),
+            _FamilyStopCard(
+                contact: AppSettings.instance.trustedContact),
+          ],
+          // 2 · Evidence.
+          if (!staged || _stage >= 1) ...[
+            const SizedBox(height: 16),
+            Text('WHY WE FLAGGED THIS',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 6),
+            if (parts.isEmpty)
+              const Card(
+                  child: ListTile(
+                      leading: Icon(Icons.check_circle_outline),
+                      title: Text(
+                          'No risky patterns found — no link, no secret request, no pressure.'))),
+            for (final p in parts)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.flag_outlined),
+                  title: Text(p.label),
+                  trailing: Text('+${p.weight}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 16)),
+                ),
+              ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              children: result.signals
-                  .map((s) => s.id)
-                  .toSet()
-                  .map((id) => Chip(label: Text(id), visualDensity: VisualDensity.compact))
-                  .toList(),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: HighlightedText(
+                    source: r.sourceText, signals: r.signals),
+              ),
             ),
           ],
-          const SizedBox(height: 16),
-          Text('Why this verdict', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 6),
-          Card(
-            child: Padding(
+          // 3 · Explanation.
+          if (!staged || _stage >= 2) ...[
+            const SizedBox(height: 16),
+            Text('What this means',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 6),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(r.explanation,
+                    style:
+                        const TextStyle(fontSize: 15, height: 1.5)),
+              ),
+            ),
+          ],
+          // 4 · Action.
+          if (!staged || _stage >= 3) ...[
+            const SizedBox(height: 12),
+            Container(
               padding: const EdgeInsets.all(12),
-              child: Text(result.explanation,
-                  style: const TextStyle(fontSize: 15, height: 1.5)),
+              decoration: BoxDecoration(
+                border: Border.all(color: c),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.checklist_outlined, color: c),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text('What to do',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: c)),
+                        Text(r.whatToDo,
+                            style: const TextStyle(
+                                fontSize: 14, height: 1.4)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: fg),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Icon(Icons.checklist_outlined, color: fg),
+                Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: _verifySheet,
+                        icon: const Icon(Icons.verified_outlined),
+                        label: const Text('Verify'))),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('What to do',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, color: fg)),
-                      Text(result.whatToDo,
-                          style: const TextStyle(fontSize: 14, height: 1.4)),
-                    ],
-                  ),
-                ),
+                    child: OutlinedButton.icon(
+                        onPressed: () => _action('Block',
+                            'Blocked and logged locally.'),
+                        icon: const Icon(Icons.block_outlined),
+                        label: const Text('Block'))),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: () => _action('Report',
+                            'Report via your bank / 1930 helpline.'),
+                        icon:
+                            const Icon(Icons.report_outlined),
+                        label: const Text('Report'))),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            const Text(
+              'ScamShield provides a risk assessment and cannot guarantee that content is fraudulent.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FamilyStopCard extends StatelessWidget {
+  final String contact;
+  const _FamilyStopCard({required this.contact});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFB71C1C),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('🛑 STOP',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900)),
+          const Text('Someone may be trying to trick you.',
+              style: TextStyle(color: Colors.white, fontSize: 15)),
+          const SizedBox(height: 8),
           const Text(
-            'Checked fully offline. Nothing left your phone.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+              'Do NOT:\n❌ Share OTP\n❌ Send money\n❌ Install unknown apps\n❌ Share your screen',
+              style: TextStyle(color: Colors.white, height: 1.6)),
+          const SizedBox(height: 8),
+          const Text('Instead: verify using the official app.',
+              style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700)),
+          if (contact.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFFB71C1C)),
+              onPressed: () => Clipboard.setData(
+                  ClipboardData(text: contact)),
+              icon: const Icon(Icons.phone_outlined),
+              label: Text('Trusted: $contact (tap to copy)'),
+            ),
+          ],
         ],
       ),
     );

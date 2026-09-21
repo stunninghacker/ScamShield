@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scamshield/data/demo_samples.dart';
 import 'package:scamshield/llm/prompt_template.dart';
-import 'package:scamshield/models/scan_result.dart';
+import 'package:scamshield/models/verdict.dart';
 import 'package:scamshield/rules/constants.dart';
 import 'package:scamshield/rules/scam_engine.dart';
 import 'package:scamshield/rules/signals.dart';

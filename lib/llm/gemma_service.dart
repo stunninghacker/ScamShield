@@ -18,7 +18,7 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:flutter_gemma/core/chat.dart';
 import 'package:flutter_gemma/core/model.dart';
 
-import '../models/scan_result.dart';
+import '../models/verdict.dart';
 import '../models/signal_match.dart';
 import 'prompt_template.dart';
 
@@ -199,6 +199,17 @@ class GemmaService {
       'payment': 'PAYMENT_PULL',
       'call': 'CALLBACK',
       'phone': 'CALLBACK',
+      'anydesk': 'REMOTE_ACCESS',
+      'teamviewer': 'REMOTE_ACCESS',
+      'screen': 'REMOTE_ACCESS',
+      'apk': 'REMOTE_ACCESS',
+      'telegram': 'JOB_LURE',
+      'job': 'JOB_LURE',
+      'earn': 'JOB_LURE',
+      'arrest': 'DIGITAL_ARREST',
+      'aadhaar': 'DIGITAL_ARREST',
+      'cbi': 'IMPERSONATION',
+      'police': 'IMPERSONATION',
       'bank': 'IMPERSONATION',
       'sbi': 'IMPERSONATION',
       'courier': 'IMPERSONATION',

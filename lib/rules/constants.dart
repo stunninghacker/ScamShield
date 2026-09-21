@@ -27,6 +27,9 @@ class RuleWeights {
   static const int paymentPull = 25; // UPI handle / pay ₹ / scan QR ...
   static const int callback = 15; // phone number + call-now language
   static const int impersonation = 20; // bank/govt/courier + any other signal
+  static const int remoteAccess = 25; // AnyDesk / screen share / remote access
+  static const int jobLure = 20; // part-time task / earn-per-day lure
+  static const int digitalArrest = 30; // digital arrest / video-call threat
 
   // Spammy repeats of the same class count once extra (not N times):
   // each signal class contributes its weight once per scan, EXCEPT links

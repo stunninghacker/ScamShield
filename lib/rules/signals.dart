@@ -384,6 +384,113 @@ List<SignalMatch> detectImpersonation(String text,
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// REMOTE_ACCESS — screen-share / remote-control tooling + coercion
+// ---------------------------------------------------------------------------
+
+final _remoteRes = <RegExp>[
+  RegExp(r'\banydesk\b', caseSensitive: false),
+  RegExp(r'\bteamviewer\b', caseSensitive: false),
+  RegExp(r'\brustdesk\b', caseSensitive: false),
+  RegExp(r'\bquicksupport\b', caseSensitive: false),
+  RegExp(r'screen\s*shar(e|ing)', caseSensitive: false),
+  RegExp(r'share\s+(your\s+)?screen', caseSensitive: false),
+  RegExp(r'remote\s*access', caseSensitive: false),
+  RegExp(r'(install|download).{0,20}\bapk\b|\bapk\b.{0,20}(install|download)',
+      caseSensitive: false),
+];
+
+List<SignalMatch> detectRemoteAccess(String text) {
+  final out = <SignalMatch>[];
+  final scan = _withoutUrls(text);
+  for (final re in _remoteRes) {
+    for (final m in _all(re, scan)) {
+      out.add(_m(
+        id: 'REMOTE_ACCESS',
+        label: 'Remote-access / screen-share trap',
+        weight: RuleWeights.remoteAccess,
+        source: text,
+        start: m.start,
+        end: m.end,
+        detail: 'remote:${text.substring(m.start, m.end)}',
+      ));
+    }
+  }
+  _dedupe(out);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// JOB_LURE — part-time / task / earn-per-day recruitment fraud
+// ---------------------------------------------------------------------------
+
+final _jobRes = <RegExp>[
+  RegExp(r'part[\s-]?time', caseSensitive: false),
+  RegExp(r'\bearn\b.{0,20}(rs\.?|₹|per day|/|daily)', caseSensitive: false),
+  RegExp(r'\btask\b.{0,25}(commission|reward|pay|bonus)', caseSensitive: false),
+  RegExp(r'(commission|reward)\s+per\s+task', caseSensitive: false),
+  RegExp(r'\btelegram\b', caseSensitive: false),
+];
+
+List<SignalMatch> detectJobLure(String text) {
+  final out = <SignalMatch>[];
+  final scan =
+      _maskRanges(text, [..._all(_urlRe, text), ..._all(_upiRe, text)]);
+  for (final re in _jobRes) {
+    for (final m in _all(re, scan)) {
+      out.add(_m(
+        id: 'JOB_LURE',
+        label: 'Fake job / task lure',
+        weight: RuleWeights.jobLure,
+        source: text,
+        start: m.start,
+        end: m.end,
+        detail: 'job:${text.substring(m.start, m.end)}',
+      ));
+    }
+  }
+  _dedupe(out);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// DIGITAL_ARREST — fake law-enforcement video-call extortion
+// ---------------------------------------------------------------------------
+
+final _arrestRes = <RegExp>[
+  RegExp(r'digital\s+arrest', caseSensitive: false),
+  RegExp(r'video\s*call.{0,50}(police|cbi|officer|customs|court|verify)',
+      caseSensitive: false),
+  RegExp(r'(police|cbi|customs|officer|court).{0,50}video\s*call',
+      caseSensitive: false),
+  RegExp(r'money\s*laundering', caseSensitive: false),
+  RegExp(r'(parcel|package|courier).{0,50}(drug|narcotic|custom)',
+      caseSensitive: false),
+  RegExp(r'(drug|narcotic).{0,50}(parcel|package)', caseSensitive: false),
+  RegExp(r'\baadhaar\b', caseSensitive: false),
+  RegExp(r'bank\s+details', caseSensitive: false),
+];
+
+List<SignalMatch> detectDigitalArrest(String text) {
+  final out = <SignalMatch>[];
+  final scan = _withoutUrls(text);
+  for (final re in _arrestRes) {
+    for (final m in _all(re, scan)) {
+      out.add(_m(
+        id: 'DIGITAL_ARREST',
+        label: 'Digital-arrest style threat',
+        weight: RuleWeights.digitalArrest,
+        source: text,
+        start: m.start,
+        end: m.end,
+        detail: 'arrest:${text.substring(m.start, m.end)}',
+      ));
+    }
+  }
+  _dedupe(out);
+  return out;
+}
+
 /// Blanks out [ranges] (replaces with spaces, keeps length) so detectors
 /// don't fire *inside* URLs/UPI handles — the link itself already carries
 /// LINK_RISK / PAYMENT_PULL weight. Offsets stay valid for the original text.

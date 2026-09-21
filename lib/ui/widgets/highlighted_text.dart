@@ -14,11 +14,14 @@ class HighlightedText extends StatelessWidget {
       case 'LINK_RISK':
       case 'SECRET_REQUEST':
       case 'PAYMENT_PULL':
+      case 'DIGITAL_ARREST':
         return const Color(0xFFD32F2F); // red family
       case 'URGENCY_THREAT':
       case 'REWARD_LURE':
       case 'IMPERSONATION':
       case 'CALLBACK':
+      case 'JOB_LURE':
+      case 'REMOTE_ACCESS':
         return const Color(0xFFEF6C00); // amber/orange family
       default:
         return const Color(0xFFEF6C00);

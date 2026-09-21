@@ -2,9 +2,11 @@
 /// same pipeline the UI uses (ScamEngine -> PromptTemplate.fallback, which
 /// is what shows until the Gemma .task file is bundled).
 /// Run: dart tool/demo_run.dart
+library;
+// ignore_for_file: avoid_print
 import 'package:scamshield/data/demo_samples.dart';
 import 'package:scamshield/llm/prompt_template.dart';
-import 'package:scamshield/models/scan_result.dart';
+import 'package:scamshield/models/verdict.dart';
 import 'package:scamshield/rules/scam_engine.dart';
 
 void main() {

@@ -6,7 +6,7 @@
 /// The LLM NEVER calls this file and NEVER changes its output.
 library;
 
-import '../models/scan_result.dart';
+import '../models/verdict.dart';
 import '../models/signal_match.dart';
 import 'constants.dart';
 import 'signals.dart';
@@ -15,8 +15,16 @@ class EngineResult {
   final List<SignalMatch> signals;
   final int score;
   final Verdict verdict;
-  const EngineResult(
-      {required this.signals, required this.score, required this.verdict});
+
+  /// Explainable contribution per signal class, e.g. {LINK_RISK: 55}.
+  /// Powers the "WHY WE FLAGGED THIS" evidence view. Sums to [score].
+  final Map<String, int> breakdown;
+  const EngineResult({
+    required this.signals,
+    required this.score,
+    required this.verdict,
+    this.breakdown = const {},
+  });
 }
 
 class ScamEngine {
@@ -34,8 +42,21 @@ class ScamEngine {
     final reward = detectReward(text);
     final payment = detectPaymentPull(text);
     final callback = detectCallback(text);
+    final remote = detectRemoteAccess(text);
+    final job = detectJobLure(text);
+    final arrest = detectDigitalArrest(text);
 
-    final others = [...links, ...secrets, ...urgency, ...reward, ...payment, ...callback];
+    final others = [
+      ...links,
+      ...secrets,
+      ...urgency,
+      ...reward,
+      ...payment,
+      ...callback,
+      ...remote,
+      ...job,
+      ...arrest,
+    ];
     final impersonation =
         detectImpersonation(text, otherSignalsNonEmpty: others.isNotEmpty);
 
@@ -50,12 +71,25 @@ class ScamEngine {
     }
 
     var score = linkScore;
-    if (secrets.isNotEmpty) score += RuleWeights.secretRequest;
-    if (urgency.isNotEmpty) score += RuleWeights.urgencyThreat;
-    if (reward.isNotEmpty) score += RuleWeights.rewardLure;
-    if (payment.isNotEmpty) score += RuleWeights.paymentPull;
-    if (callback.isNotEmpty) score += RuleWeights.callback;
-    if (impersonation.isNotEmpty) score += RuleWeights.impersonation;
+    final breakdown = <String, int>{};
+    if (linkScore > 0) breakdown['LINK_RISK'] = linkScore;
+    void add(String id, List<SignalMatch> hits, int weight) {
+      if (hits.isNotEmpty) {
+        score += weight;
+        breakdown[id] = weight;
+      }
+    }
+
+    add('SECRET_REQUEST', secrets, RuleWeights.secretRequest);
+    add('URGENCY_THREAT', urgency, RuleWeights.urgencyThreat);
+    add('REWARD_LURE', reward, RuleWeights.rewardLure);
+    add('PAYMENT_PULL', payment, RuleWeights.paymentPull);
+    add('CALLBACK', callback, RuleWeights.callback);
+    add('REMOTE_ACCESS', remote, RuleWeights.remoteAccess);
+    add('JOB_LURE', job, RuleWeights.jobLure);
+    add('DIGITAL_ARREST', arrest, RuleWeights.digitalArrest);
+    // Impersonation last so the map reads naturally in the UI.
+    add('IMPERSONATION', impersonation, RuleWeights.impersonation);
 
     if (score > 100) score = 100;
     if (score < 0) score = 0;
@@ -66,9 +100,23 @@ class ScamEngine {
             ? Verdict.suspicious
             : Verdict.safe;
 
-    final signals = [...cappedLinks, ...secrets, ...urgency, ...reward, ...payment, ...callback, ...impersonation]
-      ..sort((a, b) => a.start.compareTo(b.start));
+    final signals = [
+      ...cappedLinks,
+      ...secrets,
+      ...urgency,
+      ...reward,
+      ...payment,
+      ...callback,
+      ...remote,
+      ...job,
+      ...arrest,
+      ...impersonation,
+    ]..sort((a, b) => a.start.compareTo(b.start));
 
-    return EngineResult(signals: signals, score: score, verdict: verdict);
+    return EngineResult(
+        signals: signals,
+        score: score,
+        verdict: verdict,
+        breakdown: breakdown);
   }
 }

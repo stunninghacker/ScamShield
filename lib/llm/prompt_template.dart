@@ -10,7 +10,7 @@
 library;
 
 import '../models/signal_match.dart';
-import '../models/scan_result.dart';
+import '../models/verdict.dart';
 
 class PromptTemplate {
   static const systemRules = '''
@@ -87,6 +87,12 @@ WHAT TO DO: <one short line telling the user the safest next step>''');
     add('REWARD_LURE', 'It tempts you with a prize/refund {q} to make you pay.');
     add('PAYMENT_PULL', 'It pushes a payment to {q} — a real prize never needs a fee.');
     add('CALLBACK', 'It gives a callback number {q} so scammers can trick you on call.');
+    add('REMOTE_ACCESS',
+        'It pushes a remote-access or screen-share app {q} — never install these for strangers.');
+    add('JOB_LURE',
+        'It dangles easy earnings {q} to pull you into task fraud.');
+    add('DIGITAL_ARREST',
+        'It threatens fake arrest or police action {q} — real officers never demand money on video calls.');
     add('IMPERSONATION', 'It pretends to be {q} to look trustworthy.');
 
     final explanation = parts.join(' ');

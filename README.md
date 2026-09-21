@@ -1,131 +1,168 @@
-# ScamShield — Offline on-device scam/phishing shield
+# ScamShield — Real-Time AI Fraud Firewall
 
-> Share or screenshot an SMS/WhatsApp message → flags scam, explains WHY in plain
-> language, highlights the exact suspicious text. **Everything runs offline.
-> Nothing leaves your phone.** ✈️-mode ready.
+> Your phone's real-time AI fraud firewall. Detects suspicious behavior across
+> messages, URLs, QR codes, photos and simulated voice calls, shows the
+> evidence, and recommends the safest next action. **On-device first —
+> airplane-mode ready.**
 
-## Architecture (the winning decision)
+## Problem
 
-Two layers, strict boundary:
+India loses thousands of crores yearly to KYC/OTP phishing, lottery lures,
+fake-courier fees, task-job fraud and "digital arrest" extortion. Victims are
+often non-technical family members who get a scary message — and obey it.
+Cloud blocklists answer too late, explain nothing, and upload your SMS to do it.
 
-1. **RULE ENGINE (pure Dart, `lib/rules/`) — OWNS THE VERDICT.**
-   Pattern matching only. Every fired signal returns id + label + weight +
-   exact matched substring + char offsets. Weighted sum → verdict:
-   `SAFE (<30, green)` / `SUSPICIOUS (30–59, amber)` / `DANGEROUS (≥60, red)`.
-   Instant, deterministic, demo can't misfire.
-2. **ON-DEVICE LLM (Gemma via `flutter_gemma`, `lib/llm/`) — ONLY EXPLAINS.**
-   Input: message + fired signals. Output: ≤90-word plain-language explanation
-   + one "what to do" line. Hard rule: may only explain fired signals, never
-   invent reasons, never change verdict. Zero signals → calm "looks genuine"
-   note. All outputs sanitized; any failure → deterministic fallback
-   (demo never crashes).
+## Solution
 
+Detect → Understand → Explain → Intervene → Protect, all on the phone:
+
+- **Rules own the verdict** (10 deterministic signals, exact highlighted spans)
+- **On-device Gemma explains** in plain language — or a grounded built-in
+  fallback when the model file isn't bundled
+- **Evidence-first UI**: weighted `WHY WE FLAGGED THIS`, calibrated confidence,
+  category, and Verify/Block/Report actions on every result
+
+## Key Features
+
+| Feature | What it does | Offline? |
+|---|---|---|
+| Message scan | Paste / share SMS & WhatsApp text → verdict + highlights | ✅ |
+| ScamLens QR | Camera QR → UPI-payment vs link classification + warning | ✅ (ML Kit) |
+| ScamLens URL | Host/TLD/punycode/IP/shortener/brand analysis, never fetched | ✅ |
+| ScamLens Photo | Camera/gallery → offline OCR → full scan | ✅ |
+| Scam Radar | Simulated scam-call transcript streams in, risk updates live | ✅ (scripted) |
+| Attack timeline | KYC bait → link → harvest → OTP → fee, per-stage evidence | ✅ |
+| Evidence-first AI | +weight per signal, "ScamShield risk score (heuristic)" | ✅ |
+| Family Mode | Giant STOP card, do/don't list, trusted contact | ✅ |
+| Scam History | Indicators only, redacted previews, deletable | ✅ local |
+| Privacy Center | Processing table, clear-data buttons, cloud: not configured | ✅ |
+| Command Center | Live feed, analytics (this device), clipboard JSON sync | ✅ |
+| Judge Mode | Architecture, model status, latency, signal catalog | ✅ |
+| Demo Mode | 6 scenarios + bonus chain, staged reveal | ✅ |
+| Dark mode | System-friendly light/dark themes | ✅ |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    CAM[Camera] --> OCR[ML Kit OCR / Barcode]
+    MIC([Simulated call script]) --> TXT[Transcript]
+    SHARE[Share intent / paste / gallery] --> TXT
+    URL[URL input] --> URLI[URL Intel]
+    QR[QR payload] --> QRI[QR Intel]
+    OCR --> ENG
+    TXT --> ENG
+    subgraph ENG[Layer 1 · Rule engine]
+        SIG[10 signals + spans + weights]
+    end
+    ENG --> CAT[Layer 2 · Category + confidence]
+    ENG --> CHAIN[Layer 3 · Attack chains]
+    CAT --> RISK[Layer 4 · Risk engine\nscore · evidence · action]
+    RISK --> EXP[Explainer: Gemma on-device\nor grounded fallback]
+    EXP --> UI[Result · Radar · Timeline]
+    UI --> EV[Event log: indicators only]
+    EV --> HIST[History · Command Center]
 ```
-share text/image → (ML Kit OCR if image) → ScamEngine.analyze()
-  → verdict+spans → GemmaService.explain() → Result screen (highlighted spans)
-```
 
-No network calls anywhere. No analytics. No backend. History in
-`shared_preferences` only.
+**AI/ML actually used:** MediaPipe LLM Inference (`flutter_gemma`, Gemma 3 1B)
+for explanations; ML Kit on-device text recognition + barcode scanning.
+No training, no servers, no API keys.
 
-## Project layout
+## Phone Integration
 
-```
-lib/
-  main.dart
-  models/signal_match.dart  — id/label/weight/matchedText/start/end
-  models/scan_result.dart   — sourceText/signals/score/verdict/explanation
-  rules/constants.dart      — ALL weights + thresholds (tune here only)
-  rules/signals.dart        — 7 detectors, pure functions + offsets
-  rules/scam_engine.dart    — pipeline: detect → cap links → sum → verdict
-  data/demo_samples.dart    — 4 hard-coded demo messages
-  llm/prompt_template.dart  — EXACT grounded prompt + fallback
-  llm/gemma_service.dart    — flutter_gemma wrapper + sanitizer
-  ocr/ocr_service.dart      — ML Kit offline text recognition
-  share/share_handler.dart  — receive_sharing_intent (text + images)
-  history/history_store.dart— local history
-  ui/home_screen.dart       — paste box + Scan + 4 demo buttons + 🔒Offline
-  ui/result_screen.dart     — verdict banner + highlighted msg + explanation
-  ui/history_screen.dart    — local history
-  ui/widgets/highlighted_text.dart — provenance highlighting
-test/rules_test.dart        — unit tests for EVERY signal + demo verdicts
-assets/models/.gitkeep      — put your .task model here (gitignored)
-android/                    — minSdk 26, share-intent filters, NO internet perm
-```
+- Share sheet: SMS/WhatsApp text **and** screenshots flow straight into analysis
+- Camera (QR), gallery/camera photos (OCR), haptics scaled to risk level
+- Bottom-nav mobile layout, large risk indicators (icon + text + color, never
+  color alone), dark mode
 
-## Setup
+## Office Kit Integration
 
-### 0. Prereqs
-- Flutter latest stable, Android SDK 34, JDK 17. This machine already has
-  Android SDK + JDK 21 (works; 17 recommended).
-- A Gemma `.task` model file (see below).
+Command Center (in-app, opens on desktop builds too) reads the same local
+event log: live feed with HIGH/MEDIUM/LOW filters, this-device analytics,
+and **phone↔desktop sync via clipboard JSON** — Export on the phone, Import
+on desktop. No servers, no accounts. Raw message content never syncs (only
+indicators + redacted previews).
 
-### 1. Install Flutter (this machine doesn't have it yet)
+## Demo (judge path, ~3 min, airplane mode ON)
+
+1. Home → "Your AI fraud firewall", 🔒 Offline badge
+2. Demo Mode → Run **Fake KYC** → staged HIGH RISK reveal
+3. **WHY WE FLAGGED THIS**: +weights, highlighted spans
+4. Lens → QR tab → scan a UPI QR → "POTENTIAL PAYMENT SCAM"
+5. Radar → Play simulated digital-arrest call → watch risk climb
+6. Demo Mode → Run **KYC attack chain** → 5-stage timeline
+7. Command Center → event arrived live → analytics
+8. Privacy Center → what is/isn't stored → Clear history
+9. Demo Mode → Run **Genuine alert** → green restraint moment
+
+## Installation
+
 ```powershell
-choco install flutter -y
-# then:
-flutter doctor
-```
-
-### 2. Get packages
-```powershell
-cd C:\Users\saksh\OneDrive\Desktop\Scam_Shield
+# 1. Flutter stable + Android SDK 34+, JDK 17+
+# 2. Get packages
 flutter pub get
-```
-
-### 3. Where to place the Gemma model file
-1. Download **once on a networked machine** (never at runtime):
-   - `gemma-3-1b-it.task` (recommended, smallest) or `gemma-2b-it.task`
-   - from Kaggle / HuggingFace Gemma`.task` (MediaPipe LLM Inference format).
-2. Copy it to **both**:
-   - `assets/models/gemma-3-1b-it.task`  (bundled at build time — `pubspec.yaml` already includes `assets/models/`)
-   - It is auto-copied to app storage on first launch (`ensureModelFile`).
-3. If the file is missing, the app still works: verdict + highlighting come
-   from the rule engine, explanation uses the built-in grounded fallback
-   (badge shows "built-in explainer"). Place the file to unlock Gemma text.
-
-> `assets/models/*.task` is gitignored (large). Ship the APK with the model
-> inside for the hackathon demo device.
-
-### 4. (If `android/` looks incomplete) regenerate platform shell
-```powershell
-flutter create . --org com.scamshield.app --project-name scamshield
-flutter pub get
-```
-
-### 5. Run tests (rule engine — graded)
-```powershell
+# 3. (Optional) on-device explanations: copy gemma-3-1b-it.task
+#    into assets/models/  (gitignored, never downloaded at runtime)
+# 4. Run / test / build
+flutter run
 flutter test
-```
-All tests in `test/rules_test.dart` must pass: each signal, demo verdicts
-(1→DANGEROUS, 2→DANGEROUS, 3→SUSPICIOUS, 4→SAFE), exact offsets, grounding.
-
-### 6. Build the APK (single command)
-```powershell
 flutter build apk --debug
-# output: build/app/outputs/flutter-apk/app-debug.apk
+# app-debug.apk -> build/app/outputs/flutter-apk/
 ```
 
-## 6-line demo script (3 minutes, airplane mode ON)
+Headless pipeline replay (no UI): `dart tool/demo_run.dart`
 
-1. **Airplane mode ON.** Open ScamShield — point at the "🔒 Offline" badge: "nothing leaves your phone."
-2. Tap **Demo 1 (KYC phishing)** → red "Likely a scam", link + "OTP" highlighted → read Gemma's 2-line why.
-3. Tap **Demo 4 (genuine alert)** → green "Looks genuine" — "this restraint is why you can trust it."
-4. **Share path:** open SMS/WhatsApp → Share a scam screenshot → ScamShield → OCR → verdict live.
-5. **Paste path:** paste any forwarded SMS → Scan → amber/red + "What to do".
-6. Close: "Rules decide, Gemma explains, ML Kit reads, all offline — no blocklist, no cloud."
+## Environment Variables
 
-## Airplane-mode guarantee (self-check)
-- `grep -r "http\.\|dio\|analytics\|firebase\|telemetry" lib/` → only scam-pattern
-  strings + comments; zero network imports (`dart:io` is only for local files).
-- `AndroidManifest.xml` has **no** `INTERNET` permission.
-- Models (Gemma `.task` + ML Kit) bundled/provisioned on-device; no runtime download.
+None. No `.env`, no keys, no flavors. Everything is local or bundled.
 
-## Tuning
-Edit only `lib/rules/constants.dart` (`RuleWeights`, `RuleThresholds`), then
-`flutter test` to confirm the 4 demos still land DANGEROUS/DANGEROUS/SUSPICIOUS/SAFE.
+## API Documentation
 
-## Stretch (only after core is solid)
-- Live SMS ingestion (`READ_SMS` + permission rationale) — off by default.
-- Hindi explanation (same model, prompt flag).
-- Link visualizer (real vs lookalike domain side-by-side).
+No backend, no REST/WebSocket endpoints. Internal boundaries:
+
+- `ScanPipeline.analyze(text, source)` → verdict + evidence + event
+- `analyzeUrl(input)` → `UrlReport` (never fetches)
+- `analyzeQr(raw)` → `QrReport` (classify only)
+- `buildChain(stages)` → `AttackChain`
+- `EventLog`: `log / list / setAction / clear / exportJson / importJson`
+
+## Testing
+
+`flutter test` — 52 tests: every signal (incl. no-false-positive guards on
+genuine alerts), demo-scenario verdicts, URL/QR/stage/category/confidence
+suites, span-exactness, LLM-grounding rules. `flutter analyze` — clean.
+
+## Privacy
+
+- Full messages/recordings are **never stored** — events keep indicators +
+  digit-masked previews
+- No microphone recording (Radar is a labeled script simulation)
+- No network calls (grep `package:http|firebase|analytics` → clean),
+  manifest has **no INTERNET permission**
+- Everything deletable from Privacy Center / History
+
+## Security
+
+- Scanned URLs are parsed as strings — never visited, resolved, or downloaded
+- QR payloads classified, never executed; UPI QRs can only SEND (the app says so)
+- No secrets in code or git; clipboard sync is explicit user action
+- Inputs validated (empty/oversize/malformed handled with empty + error states)
+
+## Limitations (honest)
+
+- Gemma explanations need the `.task` file (large, user-bundled); otherwise
+  the grounded template explains — verdicts identical either way
+- URL reputation / domain age / redirect chains: unavailable offline, labeled so
+- Voice is simulated transcripts, not live-call interception (OS limitation)
+- Command Center sync is manual clipboard JSON, not automatic wireless sync
+- Camera/OCR accuracy depends on device ML Kit models
+
+## Future Work
+
+Live SMS auto-flagging (permission-gated), Hindi explanations via the same
+model, domain-lookalike visualizer, automatic LAN sync for Command Center.
+
+## Why ScamShield?
+
+Traditional detection: Receive → Analyze → Warn.
+ScamShield: **Detect → Understand → Explain → Intervene → Protect.**

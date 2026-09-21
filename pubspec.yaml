@@ -17,6 +17,8 @@ dependencies:
   receive_sharing_intent: ^1.8.0
   shared_preferences: ^2.3.2
   path_provider: ^2.1.4
+  mobile_scanner: ^7.4.2
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
