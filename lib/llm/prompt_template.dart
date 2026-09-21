@@ -34,10 +34,14 @@ STRICT RULES (never break):
     required List<SignalMatch> signals,
     required Verdict verdict,
     required int score,
+    List<String> context = const [],
   }) {
     final buf = StringBuffer();
     buf.writeln(systemRules);
     buf.writeln('VERDICT: ${verdict.nameUpper} (score $score/100).');
+    if (context.isNotEmpty) {
+      buf.writeln('AI CONTEXT (heuristic): ${context.join('; ')}.');
+    }
     // Truncate very long messages for the small on-device model.
     final shortMsg = message.length > 800 ? '${message.substring(0, 800)}…' : message;
     buf.writeln('MESSAGE: """$shortMsg"""');
@@ -94,11 +98,24 @@ WHAT TO DO: <one short line telling the user the safest next step>''');
     add('DIGITAL_ARREST',
         'It threatens fake arrest or police action {q} — real officers never demand money on video calls.');
     add('IMPERSONATION', 'It pretends to be {q} to look trustworthy.');
-
     final explanation = parts.join(' ');
     final whatToDo = verdict == Verdict.dangerous
         ? 'Do not click, pay, or share any code — delete it and report as spam.'
         : 'Do not click or pay yet — verify via the official app or website first.';
     return (explanation: explanation, whatToDo: whatToDo);
+  }
+
+  /// Static, human-reviewed Hindi safety line shown under "What to do".
+  /// Deterministic strings — never machine-translated at runtime.
+  /// Labeled beta in the UI; English remains the primary guidance.
+  static String hindiActionFor(Verdict verdict) {
+    switch (verdict) {
+      case Verdict.dangerous:
+        return 'अपना OTP या पैसा किसी को न दें।';
+      case Verdict.suspicious:
+        return 'पहले आधिकारिक ऐप से जाँच करें।';
+      case Verdict.safe:
+        return 'सतर्क रहें — OTP कभी साझा न करें।';
+    }
   }
 }

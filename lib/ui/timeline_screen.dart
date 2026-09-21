@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../analysis/stages.dart';
+import '../analysis/verdict_report.dart';
 import '../data/demo_scenarios.dart';
+import '../events/threat_events.dart';
 import '../models/verdict.dart';
 import 'widgets/risk_widgets.dart';
 
@@ -14,6 +16,30 @@ class TimelineScreen extends StatefulWidget {
 
 class _TimelineScreenState extends State<TimelineScreen> {
   late final AttackChain _chain = buildChain(kycChainStages);
+  bool _logged = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Log the chain once so it appears in History + Command Center.
+    if (!_logged) {
+      _logged = true;
+      final chainId = EventLog.newId();
+      final allSignals =
+          _chain.stages.expand((s) => s.signals).toList();
+      EventLog().log(EventLog.fromScan(
+        source: 'timeline',
+        category: 'Multi-stage KYC',
+        risk: _chain.verdict.name,
+        score: _chain.maxScore,
+        confidence: confidenceFor(_chain.maxScore,
+            hasSignals: allSignals.isNotEmpty),
+        signals: allSignals,
+        fullText: _chain.stages.map((s) => s.text).join(' '),
+        demo: true,
+      ).withChain(chainId));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

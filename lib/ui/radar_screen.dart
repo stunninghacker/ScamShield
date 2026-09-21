@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../analysis/scan_pipeline.dart';
+import '../analysis/verdict_report.dart';
 import '../data/demo_scenarios.dart';
 import '../models/verdict.dart';
 import '../rules/scam_engine.dart';
@@ -28,6 +29,8 @@ class _RadarScreenState extends State<RadarScreen> {
   int _score = 0;
   Set<String> _signals = {};
   Verdict _live = Verdict.safe;
+  String? _fresh; // latest newly-detected signal, shown as a popup banner
+  int _freshGen = 0;
 
   Future<void> _play() async {
     if (_playing) return;
@@ -40,6 +43,7 @@ class _RadarScreenState extends State<RadarScreen> {
         _score = 0;
         _signals = {};
         _live = Verdict.safe;
+        _fresh = null;
       }
     });
     while (_next < radarArrestScript.length && mounted && _playing) {
@@ -50,9 +54,21 @@ class _RadarScreenState extends State<RadarScreen> {
         final full = _shown.map((l) => l.text).join(' ');
         final r = _engine.analyze(full);
         final was = _live;
+        final freshIds =
+            r.signals.map((s) => s.id).toSet().difference(_signals);
         _score = r.score;
         _live = r.verdict;
         _signals = r.signals.map((s) => s.id).toSet();
+        if (freshIds.isNotEmpty) {
+          final gen = ++_freshGen;
+          _fresh =
+              '${freshIds.map((id) => signalLabels[id] ?? id).join(', ')} detected';
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted && gen == _freshGen) {
+              setState(() => _fresh = null);
+            }
+          });
+        }
         if (_live == Verdict.dangerous && was != Verdict.dangerous) {
           HapticFeedback.heavyImpact();
         }
@@ -129,14 +145,18 @@ class _RadarScreenState extends State<RadarScreen> {
               ),
             ),
           Expanded(
-            child: _shown.isEmpty
-                ? const Center(
-                    child: Text(
-                        'Press Play — a “CBI officer” is calling…',
-                        style: TextStyle(color: Colors.grey)))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _shown.length,
+            child: Stack(
+              children: [
+                _shown.isEmpty
+                    ? const Center(
+                        child: Text(
+                            'Press Play — a “CBI officer” is calling…',
+                            style:
+                                TextStyle(color: Colors.grey)))
+                    : ListView.builder(
+                        padding:
+                            const EdgeInsets.all(12),
+                        itemCount: _shown.length,
                     itemBuilder: (_, i) {
                       final l = _shown[i];
                       final me = l.speaker == 'You';
@@ -185,6 +205,38 @@ class _RadarScreenState extends State<RadarScreen> {
                       );
                     },
                   ),
+                if (_fresh != null)
+                  Positioned(
+                    top: 8,
+                    left: 12,
+                    right: 12,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius:
+                          BorderRadius.circular(10),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .errorContainer,
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8),
+                        child: Text(
+                          '⚡ $_fresh',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontWeight:
+                                  FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(12),

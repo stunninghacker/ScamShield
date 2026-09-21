@@ -70,6 +70,7 @@ class GemmaService {
     required List<SignalMatch> signals,
     required Verdict verdict,
     required int score,
+    List<String> context = const [],
   }) async {
     final fb = PromptTemplate.fallback(signals: signals, verdict: verdict);
     if (!_ready || _chat == null) {
@@ -81,7 +82,11 @@ class GemmaService {
     }
     try {
       final prompt = PromptTemplate.build(
-          message: message, signals: signals, verdict: verdict, score: score);
+          message: message,
+          signals: signals,
+          verdict: verdict,
+          score: score,
+          context: context);
       await _chat!
           .addQueryChunk(Message.text(text: prompt, isUser: true))
           .timeout(const Duration(seconds: 10));

@@ -5,6 +5,8 @@ import 'package:scamshield/analysis/url_intel.dart';
 import 'package:scamshield/analysis/verdict_report.dart';
 import 'package:scamshield/data/demo_scenarios.dart';
 import 'package:scamshield/events/threat_events.dart';
+import 'package:scamshield/llm/ai_provider.dart';
+import 'package:scamshield/llm/prompt_template.dart';
 import 'package:scamshield/models/verdict.dart';
 import 'package:scamshield/rules/scam_engine.dart';
 import 'package:scamshield/rules/signals.dart';
@@ -192,6 +194,110 @@ void main() {
       final p = redactPreview('Rs.12,450 credited to A/c 123456 OTP 8899');
       expect(p, isNot(contains('123456')));
       expect(p, contains('credited'));
+    });
+  });
+
+  group('AI context tags (fusion layer)', () {
+    List<String> tags(String text) =>
+        contextTagsFor(engine.analyze(text).signals);
+    test('combos produce semantic tags', () {
+      expect(
+          tags('SBI: share your OTP now at http://x.com, urgent'),
+          contains('Authority impersonation'));
+      expect(tags('share OTP immediately or blocked'),
+          contains('Financial pressure'));
+      expect(tags('under DIGITAL ARREST, join video call with police'),
+          contains('Coercive video-call threat'));
+      expect(tags('install AnyDesk and share screen'),
+          contains('Device-takeover attempt'));
+    });
+    test('empty scan -> no tags', () {
+      expect(contextTagsFor(const []), isEmpty);
+    });
+    test('prompt embeds context when provided', () {
+      final p = PromptTemplate.build(
+          message: 'x',
+          signals: const [],
+          verdict: Verdict.safe,
+          score: 0,
+          context: const ['Authority impersonation']);
+      expect(p, contains('Authority impersonation'));
+    });
+  });
+
+  group('Hindi safety lines (static, reviewed)', () {
+    test('one line per verdict, non-empty, Devanagari', () {
+      for (final v in Verdict.values) {
+        final h = PromptTemplate.hindiActionFor(v);
+        expect(h, isNotEmpty);
+        expect(RegExp(r'[\u0900-\u097F]').hasMatch(h), isTrue,
+            reason: '$v line should contain Devanagari');
+      }
+    });
+  });
+
+  group('AI provider routing (honest fallback)', () {
+    test('fallback provider always available + grounded', () async {
+      final p = RuleFallbackProvider();
+      expect(await p.available, isTrue);      final r = await p.explain(
+          message: 'share OTP now',
+          signals: engine.analyze('share OTP now').signals,
+          verdict: Verdict.suspicious,
+          score: 30);
+      expect(r.fromLocalModel, isFalse);
+      expect(r.explanation, isNotEmpty);
+    });
+    test('router never throws without a model', () async {
+      final r = await AiRouter.instance.explain(
+          message: 'hello',
+          signals: const [],
+          verdict: Verdict.safe,
+          score: 0);
+      expect(r.explanation, contains('genuine'));
+    });
+  });
+
+  group('event import guards', () {
+    test('oversize / malformed payloads rejected', () async {
+      final log = EventLog();
+      await expectLater(
+          log.importJson('x' * (256 * 1024 + 1)),
+          throwsA(isA<FormatException>()));
+      await expectLater(log.importJson('{"a":1}'),
+          throwsA(isA<FormatException>()));
+    });
+    test('chain fields default null, survive round-trip', () {
+      final e = EventLog.fromScan(
+          source: 'text',
+          category: 'Banking / OTP Scam',
+          risk: 'dangerous',
+          score: 90,
+          confidence: 0.9,
+          signals: const [],
+          fullText: 'share OTP 123456 now');
+      expect(e.stage, isNull);
+      expect(e.chainId, isNull);
+      final rt = ThreatEvent.fromJson(e.toJson());
+      expect(rt.stage, isNull);
+      final chained = e.withChain('c1', stage: '4 · OTP theft');
+      expect(chained.chainId, 'c1');
+      expect(chained.stage, '4 · OTP theft');
+    });
+  });
+
+  group('demo coverage (all six + chain)', () {
+    test('every single scenario lands its expected verdict', () {
+      for (final s
+          in demoScenarios.where((x) => x.kind == ScenarioKind.single)) {
+        final r = engine.analyze(s.text!);
+        expect(r.verdict.nameUpper, s.expected,
+            reason: '${s.id} should be ${s.expected}');
+      }
+    });
+    test('timeline stages stay in attack order', () {
+      expect(kycChainStages.map((s) => s.title).toList(),
+          ['1 · KYC bait', '2 · Phishing link', '3 · Credential harvest',
+           '4 · OTP theft', '5 · Payment fraud']);
     });
   });
 }

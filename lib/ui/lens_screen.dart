@@ -156,6 +156,17 @@ class _QrTabState extends State<_QrTab>
           child: Text('Point at a QR — UPI, link, contact or Wi-Fi.',
               style: TextStyle(color: Colors.grey)),
         ),
+        Padding(
+          padding:
+              const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+          child: OutlinedButton.icon(
+            onPressed: () => _onCode(
+                'upi://pay?pa=refund-cell@okhdfcbank&pn=KYC%20Refund&am=999'),
+            icon: const Icon(Icons.bolt_outlined),
+            label: const Text(
+                'No camera? Try a sample payment QR'),
+          ),
+        ),
       ],
     );
   }
@@ -291,6 +302,17 @@ class _UrlTabState extends State<_UrlTab>
             onPressed: _go,
             icon: const Icon(Icons.search_outlined),
             label: const Text('Analyze URL')),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () {
+              _ctrl.text = 'http://sbi-verify.xyz/kyc-update';
+              _go();
+            },
+            child: const Text(
+                'No link handy? Try a sample phishing URL'),
+          ),
+        ),
         if (_rep != null) ...[
           const SizedBox(height: 12),
           _UrlReportCard(
@@ -426,6 +448,7 @@ class _PhotoTabState extends State<_PhotoTab>
       final f = await _picker.pickImage(source: src);
       if (f == null) return;
       String text;
+      final ocrSw = Stopwatch()..start();
       try {
         text =
             (await OcrService.instance.recognizeFile(File(f.path)))
@@ -448,6 +471,9 @@ class _PhotoTabState extends State<_PhotoTab>
         return;
       }
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Photo read offline in ${ocrSw.elapsedMilliseconds} ms — analyzing…')));
         await runTextScan(context, text, source: 'image');
       }
     } catch (e) {

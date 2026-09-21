@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../analysis/scan_pipeline.dart';
 import '../analysis/verdict_report.dart';
+import '../llm/prompt_template.dart';
 import '../events/threat_events.dart';
 import '../models/verdict.dart';
 import '../settings/app_settings.dart';
@@ -182,11 +183,27 @@ class _ResultScreenState extends State<ResultScreen> {
           if (r.confidence > 0) ...[
             const SizedBox(height: 6),
             Text(
-                'Confidence ${(r.confidence).toStringAsFixed(2)} (heuristic) · '
-                'analyzed on-device in ${r.latencyMs} ms · '
-                '${r.llmUsed ? 'explained by Gemma' : 'built-in explainer'}',
+                'ASSESSMENT · Confidence ${(r.confidence).toStringAsFixed(2)} (heuristic) · '
+                'engine ${r.latencyMs} ms · explained in ${r.aiMs} ms · '
+                '${r.llmUsed ? 'Local Gemma on-device' : 'built-in explainer (model not bundled)'}',
                 style:
                     const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+          if (r.context.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                const Chip(
+                    label: Text('AI context (heuristic):'),
+                    visualDensity: VisualDensity.compact),
+                for (final t in r.context)
+                  Chip(
+                      label: Text(t),
+                      visualDensity: VisualDensity.compact),
+              ],
+            ),
           ],
           // Family STOP card.
           if (family && r.verdict != Verdict.safe) ...[
@@ -197,7 +214,7 @@ class _ResultScreenState extends State<ResultScreen> {
           // 2 · Evidence.
           if (!staged || _stage >= 1) ...[
             const SizedBox(height: 16),
-            Text('WHY WE FLAGGED THIS',
+            Text('DETECTED — WHY WE FLAGGED THIS',
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 6),
             if (parts.isEmpty)
@@ -259,13 +276,20 @@ class _ResultScreenState extends State<ResultScreen> {
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
                       children: [
-                        Text('What to do',
+                        Text('RECOMMENDATION — What to do',
                             style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: c)),
                         Text(r.whatToDo,
                             style: const TextStyle(
                                 fontSize: 14, height: 1.4)),
+                        const SizedBox(height: 4),
+                        Text(
+                            'हिंदी (beta): ${PromptTemplate.hindiActionFor(r.verdict)}',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                color: Colors.grey)),
                       ],
                     ),
                   ),

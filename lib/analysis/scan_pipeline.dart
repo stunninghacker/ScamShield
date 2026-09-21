@@ -9,7 +9,7 @@ library;
 import 'package:flutter/foundation.dart';
 import '../analysis/verdict_report.dart';
 import '../events/threat_events.dart';
-import '../llm/gemma_service.dart';
+import '../llm/ai_provider.dart';
 import '../llm/prompt_template.dart';
 import '../models/verdict.dart';
 import '../models/signal_match.dart';
@@ -24,10 +24,12 @@ class PipelineResult {
   final Verdict verdict;
   final String category;
   final double confidence;
+  final List<String> context;
   final String explanation;
   final String whatToDo;
   final bool llmUsed;
   final int latencyMs;
+  final int aiMs;
   final String eventId;
 
   const PipelineResult({
@@ -39,10 +41,12 @@ class PipelineResult {
     required this.verdict,
     required this.category,
     required this.confidence,
+    required this.context,
     required this.explanation,
     required this.whatToDo,
     required this.llmUsed,
     required this.latencyMs,
+    required this.aiMs,
     required this.eventId,
   });
 }
@@ -53,6 +57,7 @@ class ScanPipeline {
   static const _engine = ScamEngine();
 
   int lastLatencyMs = 0;
+  int lastAiMs = 0;
 
   Future<PipelineResult> analyze(
     String rawText, {
@@ -69,12 +74,17 @@ class ScanPipeline {
       final category = categoryFor(out.signals);
       final confidence =
           confidenceFor(out.score, hasSignals: out.signals.isNotEmpty);
-      final explained = await GemmaService.instance.explain(
+      final context = contextTagsFor(out.signals);
+      final aiSw = Stopwatch()..start();
+      final explained = await AiRouter.instance.explain(
         message: text,
         signals: out.signals,
         verdict: out.verdict,
         score: out.score,
+        context: context,
       );
+      aiSw.stop();
+      lastAiMs = aiSw.elapsedMilliseconds;
       final event = EventLog.fromScan(
         source: source,
         category: category,
@@ -99,10 +109,12 @@ class ScanPipeline {
         verdict: out.verdict,
         category: category,
         confidence: confidence,
+        context: context,
         explanation: explained.explanation,
         whatToDo: explained.whatToDo,
-        llmUsed: explained.llmUsed,
+        llmUsed: explained.fromLocalModel,
         latencyMs: lastLatencyMs,
+        aiMs: lastAiMs,
         eventId: event.id,
       );
     } catch (e) {
@@ -118,10 +130,12 @@ class ScanPipeline {
         verdict: Verdict.safe,
         category: 'Genuine',
         confidence: 0.0,
+        context: const [],
         explanation: fb.explanation,
         whatToDo: fb.whatToDo,
         llmUsed: false,
         latencyMs: 0,
+        aiMs: 0,
         eventId: '',
       );
     }

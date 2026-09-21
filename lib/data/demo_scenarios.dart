@@ -111,6 +111,8 @@ const radarArrestScript = <RadarLine>[
       'Share your Aadhaar and bank details to prove your innocence.'),
   RadarLine('You', 'But… how do I know this is real?'),
   RadarLine('Scammer',
+      'Install this support app and share your screen so I can verify you.'),
+  RadarLine('Scammer',
       'Transfer Rs.50,000 as a security deposit and tell me the OTP you just received. Hurry.'),
 ];
 

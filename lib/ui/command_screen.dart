@@ -105,8 +105,67 @@ class _CommandScreenState extends State<CommandScreen> {
     }
   }
 
-  Future<void> _simulate() async {
-    await EventLog().log(ThreatEvent(
+  void _detail(ThreatEvent e) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        builder: (_, ctrl) => ListView(
+          controller: ctrl,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Row(children: [
+              RiskBadge(verdict: verdictFromRisk(e.risk)),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text(e.category,
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800))),
+            ]),
+            const SizedBox(height: 8),
+            Text('LIVE SECURITY EVENT',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary)),
+            Text('Risk: ${e.risk.toUpperCase()} (${e.score}/100)'),
+            Text('Source: ${e.source}'),
+            Text(
+                'Time: ${e.timestamp.substring(0, 16).replaceAll('T', ' ')}'),
+            if (e.stage != null) Text('Chain stage: ${e.stage}'),
+            if (e.chainId != null)
+              Text('Chain: ${e.chainId!.substring(0, 13)}…'),
+            const SizedBox(height: 8),
+            const Text('Signals:',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final s in e.signals)
+                  Chip(
+                      label: Text('✓ $s'),
+                      visualDensity: VisualDensity.compact),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('“${e.preview}”',
+                style:
+                    const TextStyle(fontStyle: FontStyle.italic)),
+            const SizedBox(height: 8),
+            Text('Recommended action: ${e.action}',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _simulate() async {    await EventLog().log(ThreatEvent(
       id: EventLog.newId(),
       timestamp: DateTime.now().toIso8601String(),
       source: 'voice',
@@ -245,6 +304,7 @@ class _CommandScreenState extends State<CommandScreen> {
                         fontWeight: FontWeight.w700)),
                 subtitle: Text(
                     '${e.source} · ${e.timestamp.substring(0, 16).replaceAll('T', ' ')} · ${e.signals.join(', ')} · → ${e.action}'),
+                onTap: () => _detail(e),
               ),
             ),
           const SizedBox(height: 8),

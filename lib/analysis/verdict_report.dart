@@ -68,3 +68,32 @@ double confidenceFor(int score, {required bool hasSignals}) {
   if (!hasSignals || score <= 0) return 0.0;
   return (0.5 + score / 200).clamp(0.0, 0.95);
 }
+
+/// AI-context tags: semantic reading of signal COMBINATIONS for the
+/// fusion layer. Deterministic and heuristic — shown as "AI context
+/// (heuristic)" and fed to the LLM prompt so explanations stay grounded.
+List<String> contextTagsFor(List<SignalMatch> signals) {
+  if (signals.isEmpty) return const [];
+  final ids = signals.map((s) => s.id).toSet();
+  final tags = <String>[];
+  void add(bool cond, String tag) {
+    if (cond) tags.add(tag);
+  }
+
+  add(ids.contains('IMPERSONATION') &&
+      (ids.contains('LINK_RISK') || ids.contains('CALLBACK')),
+      'Authority impersonation');
+  add(ids.contains('SECRET_REQUEST') && ids.contains('URGENCY_THREAT'),
+      'Financial pressure');
+  add(ids.contains('SECRET_REQUEST') &&
+      (ids.contains('PAYMENT_PULL') || ids.contains('LINK_RISK')),
+      'Credential harvesting');
+  add(ids.contains('REWARD_LURE') && ids.contains('PAYMENT_PULL'),
+      'Advance-fee lure');
+  add(ids.contains('DIGITAL_ARREST'), 'Coercive video-call threat');
+  add(ids.contains('REMOTE_ACCESS'), 'Device-takeover attempt');
+  add(ids.contains('JOB_LURE'), 'Recruitment fraud pattern');
+  add(ids.contains('CALLBACK') && ids.contains('URGENCY_THREAT'),
+      'Callback trap');
+  return tags;
+}

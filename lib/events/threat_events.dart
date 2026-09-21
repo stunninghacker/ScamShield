@@ -29,6 +29,8 @@ class ThreatEvent {
   final String preview; // redacted
   final String action; // Verify / Block / Report / None
   final bool demo; // true for clearly-labeled demo/sample events
+  final String? stage; // attack-chain stage title, if part of a chain
+  final String? chainId; // groups stages of one detected chain
 
   const ThreatEvent({
     required this.id,
@@ -43,6 +45,8 @@ class ThreatEvent {
     required this.preview,
     this.action = 'None',
     this.demo = false,
+    this.stage,
+    this.chainId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -58,6 +62,8 @@ class ThreatEvent {
         'preview': preview,
         'action': action,
         'demo': demo,
+        'stage': stage,
+        'chainId': chainId,
       };
 
   factory ThreatEvent.fromJson(Map<String, dynamic> j) => ThreatEvent(
@@ -75,6 +81,26 @@ class ThreatEvent {
         preview: '${j['preview'] ?? ''}',
         action: '${j['action'] ?? 'None'}',
         demo: (j['demo'] ?? false) as bool,
+        stage: j['stage'] == null ? null : '${j['stage']}',
+        chainId: j['chainId'] == null ? null : '${j['chainId']}',
+      );
+
+  /// Copy with attack-chain linkage (used when logging Timeline views).
+  ThreatEvent withChain(String chainId, {String? stage}) => ThreatEvent(
+        id: id,
+        timestamp: timestamp,
+        source: source,
+        category: category,
+        risk: risk,
+        score: score,
+        confidence: confidence,
+        signals: signals,
+        evidenceCount: evidenceCount,
+        preview: preview,
+        action: action,
+        demo: demo,
+        stage: stage ?? this.stage,
+        chainId: chainId,
       );
 }
 
@@ -140,9 +166,17 @@ class EventLog {
   }
 
   /// Import a previously exported payload. Returns events imported.
+  /// Hardened: rejects oversized payloads and caps event count so a
+  /// malicious clipboard payload cannot blow up local storage.
   Future<int> importJson(String payload) async {
+    if (payload.length > 256 * 1024) {
+      throw const FormatException('Payload too large (>256KB)');
+    }
     final decoded = jsonDecode(payload);
     if (decoded is! List) throw const FormatException('Not an event list');
+    if (decoded.length > 100) {
+      throw const FormatException('Too many events (>100)');
+    }
     var n = 0;
     for (final e in decoded) {
       try {
