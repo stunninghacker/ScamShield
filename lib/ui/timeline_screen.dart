@@ -21,23 +21,26 @@ class _TimelineScreenState extends State<TimelineScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Log the chain once so it appears in History + Command Center.
+    // Log every stage as its own event under one chainId, so History and
+    // Command Center correlate the real chain instead of a summary.
     if (!_logged) {
       _logged = true;
       final chainId = EventLog.newId();
-      final allSignals =
-          _chain.stages.expand((s) => s.signals).toList();
-      EventLog().log(EventLog.fromScan(
-        source: 'timeline',
-        category: 'Multi-stage KYC',
-        risk: _chain.verdict.name,
-        score: _chain.maxScore,
-        confidence: confidenceFor(_chain.maxScore,
-            hasSignals: allSignals.isNotEmpty),
-        signals: allSignals,
-        fullText: _chain.stages.map((s) => s.text).join(' '),
-        demo: true,
-      ).withChain(chainId));
+      () async {
+        for (final s in _chain.stages) {
+          await EventLog().log(EventLog.fromScan(
+            source: 'timeline',
+            category: 'Multi-stage KYC',
+            risk: s.verdict.name,
+            score: s.score,
+            confidence: confidenceFor(s.score,
+                hasSignals: s.signals.isNotEmpty),
+            signals: s.signals,
+            fullText: s.text,
+            demo: true,
+          ).withChain(chainId, stage: s.title));
+        }
+      }();
     }
   }
 

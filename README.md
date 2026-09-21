@@ -88,21 +88,33 @@ flowchart TD
 - Privacy Center discloses processing table + cloud status (not configured)
 - Everything deletable; network access: none
 
-## Phone Integration
+## Phone Integration (Phone Features)
 
 Share sheet (text + screenshots), camera QR, photo OCR, haptics scaled to
 risk, bottom-nav mobile layout, icon+text+color risk (never color alone),
 dark mode, offline-first (airplane-mode demo supported).
+
+## Attack Chain
+
+The hero differentiator. The KYC chain (bait → phishing link → credential
+harvest → OTP theft → payment fraud) is analyzed stage-by-stage by the real
+engine; every stage becomes a `ThreatEvent` sharing one `chainId`, so the
+Timeline, History and Command Center correlate the same genuine chain.
+Single bad messages among clean ones are explicitly NOT chains (tested).
 
 ## Office Kit
 
 Command Center (in-app; open it on desktop builds) reads the local event log:
 live feed with risk filters, event detail sheets, this-device analytics, and
 **phone↔desktop sync via clipboard JSON** (Export → Import). No servers, no
-accounts, no raw content. LAN auto-sync deliberately deferred (spec §21:
-reliability over flash) — manual JSON fallback is the shipped workflow.
+accounts, no raw content. LAN auto-sync deliberately deferred
+(reliability over flash) — manual JSON fallback is the shipped workflow.
+Rehearsed stage workflow: `demo/OFFICE_KIT_DEMO.md`.
 
 ## Demo (3 min, airplane mode ON)
+
+Print the QR card first: `demo/QR_CARD.md` (deterministic UPI payload;
+projector QRs fail — paper doesn't). In-app Sample QR is the fallback.
 
 1. 0:00 Home — "privacy-first AI fraud firewall", 🔒 Offline
 2. 0:15 Demo → Fake KYC → staged **HIGH RISK**

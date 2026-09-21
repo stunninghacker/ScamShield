@@ -159,6 +159,29 @@ class EventLog {
     await prefs.remove('scamshield_history_v1');
   }
 
+  /// All events of one attack chain, oldest first. Independent scans never
+  /// share a chainId, so unrelated events are never merged.
+  Future<List<ThreatEvent>> stagesOf(String chainId) async {
+    final all = await list();
+    // list() is newest-first: reverse to oldest-first, then stable-sort by
+    // timestamp so same-millisecond stages keep insertion order.
+    final out =
+        all.reversed.where((e) => e.chainId == chainId).toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return out;
+  }
+
+  /// Distinct chainIds present, newest chain first.
+  Future<List<String>> chainIds() async {
+    final all = await list();
+    final seen = <String>[];
+    for (final e in all) {
+      final c = e.chainId;
+      if (c != null && !seen.contains(c)) seen.add(c);
+    }
+    return seen;
+  }
+
   /// Export for phone↔desktop sync (user-initiated, offline, via clipboard).
   Future<String> exportJson() async {
     final items = await list();

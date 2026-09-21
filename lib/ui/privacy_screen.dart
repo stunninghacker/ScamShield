@@ -41,7 +41,15 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 leading: Icon(Icons.cloud_off_outlined),
                 title: Text('Cloud'),
                 subtitle: Text(
-                    'No cloud backend is configured. Nothing is uploaded, ever.')),
+                    'No cloud backend is configured. Nothing is uploaded, ever.\n\n'
+                    'ScamShield security analysis and fallback operate locally; '
+                    'optional local Gemma inference is available only when the model asset is present.')),
+            Divider(height: 1),
+            ListTile(
+                leading: Icon(Icons.policy_outlined),
+                title: Text('Exact status'),
+                subtitle: Text(
+                    'NETWORK ACCESS\nNone\n\nExternal APIs\nNone\n\nURL fetching\nDisabled\n\nQR execution\nDisabled\n\nCLOUD AI\nNot configured\n\nLOCAL ANALYSIS\nActive')),
           ])),
           const SizedBox(height: 12),
           Text('What history stores',
@@ -50,7 +58,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           const Card(
               child: ListTile(
                   subtitle: Text(
-                      'Risk, category, score, signal list, evidence count, action taken, and a redacted preview (account numbers and OTPs masked). Full messages and recordings are never stored.'))),
+                      'Risk, category, score, signal list, evidence count, action taken, attack-chain links, and a redacted preview (account numbers and OTPs masked). Full messages and recordings are never stored.'))),
           const SizedBox(height: 12),
           FilledButton.icon(
               onPressed: _clear,

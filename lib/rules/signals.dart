@@ -146,6 +146,11 @@ List<SignalMatch> detectLinks(String text) {
 // SECRET_REQUEST
 // ---------------------------------------------------------------------------
 
+/// Negation words marking safety ADVICE rather than a secret request.
+/// Checked only in the same clause before the keyword.
+final _advisoryNeg = RegExp(
+    r"\b(never|don't|do not|does not|will never|won't|would never|beware)\b");
+
 final _secretRes = <RegExp>[
   RegExp(r'\botp\b', caseSensitive: false),
   RegExp(r'\bupi\s*pin\b', caseSensitive: false),
@@ -169,6 +174,14 @@ List<SignalMatch> detectSecretRequest(String text) {
   final scan = _withoutUrls(text);
   for (final re in _secretRes) {
     for (final m in _all(re, scan)) {
+      // Advisory negation: "never share your OTP", "do not enter your
+      // PIN" — safety advice mentioning secrets is not a request.
+      // Only a negation in the SAME clause BEFORE the keyword suppresses,
+      // so "Share your OTP. Never ignore this!" still fires.
+      final winStart = (m.start - 48).clamp(0, scan.length);
+      final clause =
+          scan.substring(winStart, m.start).split(RegExp(r'[.!?\n]')).last;
+      if (_advisoryNeg.hasMatch(clause.toLowerCase())) continue;
       out.add(_m(
         id: 'SECRET_REQUEST',
         label: 'Asks for secret code',

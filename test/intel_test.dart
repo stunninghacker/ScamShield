@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:scamshield/analysis/qr_intel.dart';
 import 'package:scamshield/analysis/stages.dart';
 import 'package:scamshield/analysis/url_intel.dart';
@@ -285,8 +286,7 @@ void main() {
     });
   });
 
-  group('demo coverage (all six + chain)', () {
-    test('every single scenario lands its expected verdict', () {
+  group('demo coverage (all six + chain)', () {    test('every single scenario lands its expected verdict', () {
       for (final s
           in demoScenarios.where((x) => x.kind == ScenarioKind.single)) {
         final r = engine.analyze(s.text!);
@@ -298,6 +298,88 @@ void main() {
       expect(kycChainStages.map((s) => s.title).toList(),
           ['1 · KYC bait', '2 · Phishing link', '3 · Credential harvest',
            '4 · OTP theft', '5 · Payment fraud']);
+    });
+  });
+
+  group('legitimate proof (not a keyword alarm)', () {
+    test('statement + delivery + advisory texts stay LOW', () {
+      const legit = [
+        'Your monthly account statement is ready. You can view it in the official app.',
+        'Dear customer, Rs.12,450 credited to your SBI A/c XX1234 on 20-Sep. Avl bal Rs.54,210. -SBI',
+        'Never share your OTP with anyone. Bank staff will never ask for it.',
+        'Meeting moved to 5pm. Bring the report.',
+      ];
+      for (final t in legit) {
+        final r = engine.analyze(t);
+        expect(r.verdict, Verdict.safe, reason: '"$t" must be SAFE');
+      }
+    });
+  });
+
+  group('radar escalation (engine-coupled)', () {
+    test('urgency -> OTP -> remote-access escalates to DANGEROUS', () {
+      var seen = <String>{};
+      Verdict last = Verdict.safe;
+      var buf = '';
+      const lines = [
+        'Your account will be blocked in 10 minutes.',
+        'Tell me the OTP you just received.',
+        'Install this support app and share your screen.',
+      ];
+      for (final l in lines) {
+        buf = buf.isEmpty ? l : '$buf $l';
+        final r = engine.analyze(buf);
+        expect(r.score,
+            greaterThanOrEqualTo(engine.analyze(buf).score));
+        seen = r.signals.map((s) => s.id).toSet();
+        last = r.verdict;
+      }
+      expect(seen,
+          containsAll(['URGENCY_THREAT', 'SECRET_REQUEST', 'REMOTE_ACCESS']));
+      expect(last, Verdict.dangerous);
+    });
+  });
+
+  group('history privacy (indicator-only storage)', () {
+    test('raw secrets never reach SharedPreferences', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final log = EventLog();
+      await log.clear();
+      const secret = 'share OTP 889922 now';
+      await log.log(EventLog.fromScan(
+          source: 'text',
+          category: 'Banking / OTP Scam',
+          risk: 'dangerous',
+          score: 90,
+          confidence: 0.9,
+          signals: engine.analyze(secret).signals,
+          fullText: secret));
+      final prefs = await SharedPreferences.getInstance();
+      final blob = (prefs.getStringList('scamshield_events_v2') ?? []).join();
+      expect(blob, isNot(contains('889922')));
+      expect(blob, contains('SECRET_REQUEST'));
+    });
+    test('chain stages group by chainId, others excluded', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final log = EventLog();
+      await log.clear();
+      const cid = 'chain-1';
+      await log.log(EventLog.fromScan(
+          source: 'timeline', category: 'C', risk: 'safe', score: 0,
+          confidence: 0, signals: const [], fullText: 'a')
+          .withChain(cid, stage: 's1'));
+      await log.log(EventLog.fromScan(
+          source: 'timeline', category: 'C', risk: 'safe', score: 0,
+          confidence: 0, signals: const [], fullText: 'b')
+          .withChain(cid, stage: 's2'));
+      await log.log(EventLog.fromScan(
+          source: 'text', category: 'C', risk: 'safe', score: 0,
+          confidence: 0, signals: const [], fullText: 'c'));
+      final stages = await log.stagesOf(cid);
+      expect(stages.map((e) => e.stage).toList(), ['s1', 's2']);
+      expect(await log.chainIds(), [cid]);
     });
   });
 }

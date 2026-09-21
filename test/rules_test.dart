@@ -52,10 +52,20 @@ void main() {
       expect(detectSecretRequest('enter your password'), isNotEmpty);
     });
     test('exact offsets', () {
-      const t = 'Do not share your OTP with anyone';
+      const t = 'Please share your OTP now to verify';
       final m = detectSecretRequest(t).first;
       expect(t.substring(m.start, m.end).toLowerCase(), contains('otp'));
       expect(m.matchedText, t.substring(m.start, m.end));
+    });
+    test('safety advice is not a request (negation guard)', () {
+      expect(
+          detectSecretRequest(
+              'Never share your OTP with anyone. Bank staff will never ask for it.'),
+          isEmpty);
+      expect(detectSecretRequest('Do not enter your PIN here.'), isEmpty);
+      // ...but real demands still fire:
+      expect(detectSecretRequest('Share your OTP. Never ignore this!'),
+          isNotEmpty);
     });
     test('genuine alert has no secret request', () {
       expect(detectSecretRequest(demoSamples[3].text), isEmpty);

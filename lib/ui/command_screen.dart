@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../events/threat_events.dart';
+import '../models/verdict.dart';
 import 'widgets/risk_widgets.dart';
 
 /// Office Kit — Command Center (on-device).
@@ -17,6 +18,7 @@ class CommandScreen extends StatefulWidget {
 
 class _CommandScreenState extends State<CommandScreen> {
   List<ThreatEvent> _events = [];
+  Map<String, List<ThreatEvent>> _chains = {};
   Timer? _poll;
   String _filter = 'ALL';
 
@@ -41,7 +43,18 @@ class _CommandScreenState extends State<CommandScreen> {
         (v.isNotEmpty &&
             _events.isNotEmpty &&
             v.first.id != _events.first.id);
-    if (changed || !silent) setState(() => _events = v);
+    if (changed || !silent) {
+      final log = EventLog();
+      final chains = <String, List<ThreatEvent>>{};
+      for (final id in await log.chainIds()) {
+        chains[id] = await log.stagesOf(id);
+      }
+      if (!mounted) return;
+      setState(() {
+        _events = v;
+        _chains = chains;
+      });
+    }
   }
 
   List<ThreatEvent> get _filtered {
@@ -254,9 +267,20 @@ class _CommandScreenState extends State<CommandScreen> {
             ),
           ),
           const SizedBox(height: 8),
+          if (_chains.isNotEmpty) ...[
+            const Text('ATTACK CHAINS',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey)),
+            for (final entry in _chains.entries)
+              _ChainCard(
+                  stages: entry.value,
+                  onTap: _detail),
+            const SizedBox(height: 4),
+          ],
           // Live feed filters.
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          SingleChildScrollView(            scrollDirection: Axis.horizontal,
             child: Row(children: [
               for (final f in ['ALL', 'HIGH', 'MEDIUM', 'LOW'])
                 Padding(
@@ -323,4 +347,47 @@ class _CommandScreenState extends State<CommandScreen> {
                 fontSize: 24, fontWeight: FontWeight.w900)),
         Text(label, style: const TextStyle(fontSize: 12)),
       ]);
+}
+
+/// One correlated attack chain: worst stage sets the color, stages expand.
+class _ChainCard extends StatelessWidget {
+  final List<ThreatEvent> stages;
+  final void Function(ThreatEvent) onTap;
+  const _ChainCard({required this.stages, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    var worst = Verdict.safe;
+    for (final s in stages) {
+      final v = verdictFromRisk(s.risk);
+      if (v.index > worst.index) worst = v;
+    }
+    return Card(
+      color: riskColor(worst, context).withValues(alpha: 0.07),
+      child: ExpansionTile(
+        leading: const Icon(Icons.link_outlined),
+        title: Text(
+            '🔗 Chain · ${stages.length} stages · worst ${worst.riskWord}',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(stages.first.category),
+        children: [
+          for (final s in stages)
+            ListTile(
+              dense: true,
+              leading: Icon(
+                  riskIcon(verdictFromRisk(s.risk)),
+                  size: 20,
+                  color: riskColor(
+                      verdictFromRisk(s.risk), context)),
+              title: Text(s.stage ?? s.category,
+                  style: const TextStyle(fontSize: 13)),
+              subtitle: Text(
+                  '${s.risk.toUpperCase()} · ${s.score}/100 · ${s.signals.join(', ')}',
+                  style: const TextStyle(fontSize: 12)),
+              onTap: () => onTap(s),
+            ),
+        ],
+      ),
+    );
+  }
 }
