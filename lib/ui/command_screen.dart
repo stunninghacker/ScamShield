@@ -327,7 +327,7 @@ class _CommandScreenState extends State<CommandScreen> {
                     style: const TextStyle(
                         fontWeight: FontWeight.w700)),
                 subtitle: Text(
-                    '${e.source} · ${e.timestamp.substring(0, 16).replaceAll('T', ' ')} · ${e.signals.join(', ')} · → ${e.action}'),
+                    '${e.source}${e.family.isNotEmpty ? ' · ${e.family}' : ''} · ${e.timestamp.substring(0, 16).replaceAll('T', ' ')} · ${e.signals.join(', ')} · → ${e.action}'),
                 onTap: () => _detail(e),
               ),
             ),

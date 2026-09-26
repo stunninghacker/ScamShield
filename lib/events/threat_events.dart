@@ -31,6 +31,7 @@ class ThreatEvent {
   final bool demo; // true for clearly-labeled demo/sample events
   final String? stage; // attack-chain stage title, if part of a chain
   final String? chainId; // groups stages of one detected chain
+  final String family; // ScamFamily label for this scan ('' = pre-chain)
 
   const ThreatEvent({
     required this.id,
@@ -47,6 +48,7 @@ class ThreatEvent {
     this.demo = false,
     this.stage,
     this.chainId,
+    this.family = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -64,6 +66,7 @@ class ThreatEvent {
         'demo': demo,
         'stage': stage,
         'chainId': chainId,
+        'family': family,
       };
 
   factory ThreatEvent.fromJson(Map<String, dynamic> j) => ThreatEvent(
@@ -83,6 +86,7 @@ class ThreatEvent {
         demo: (j['demo'] ?? false) as bool,
         stage: j['stage'] == null ? null : '${j['stage']}',
         chainId: j['chainId'] == null ? null : '${j['chainId']}',
+        family: '${j['family'] ?? ''}',
       );
 
   /// Copy with attack-chain linkage (used when logging Timeline views).
@@ -101,6 +105,7 @@ class ThreatEvent {
         demo: demo,
         stage: stage ?? this.stage,
         chainId: chainId,
+        family: family,
       );
 }
 
@@ -221,6 +226,7 @@ class EventLog {
     required List<SignalMatch> signals,
     required String fullText,
     bool demo = false,
+    String family = '',
   }) =>
       ThreatEvent(
         id: newId(),
@@ -234,5 +240,6 @@ class EventLog {
         evidenceCount: signals.length,
         preview: redactPreview(fullText),
         demo: demo,
+        family: family,
       );
 }

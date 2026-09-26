@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import '../analysis/attack_chain.dart';
 import '../analysis/verdict_report.dart';
 import '../events/threat_events.dart';
 import '../llm/ai_provider.dart';
@@ -31,8 +32,10 @@ class PipelineResult {
   final int latencyMs;
   final int aiMs;
   final String eventId;
+  final ScamFamily family; // evidence-first family from signal combinations
+  final SignalChain chain; // ordered attack story for this message
 
-  const PipelineResult({
+  PipelineResult({
     required this.sourceText,
     required this.source,
     required this.signals,
@@ -48,6 +51,8 @@ class PipelineResult {
     required this.latencyMs,
     required this.aiMs,
     required this.eventId,
+    required this.family,
+    required this.chain,
   });
 }
 
@@ -85,6 +90,14 @@ class ScanPipeline {
       );
       aiSw.stop();
       lastAiMs = aiSw.elapsedMilliseconds;
+      // Evidence-first chain: engine output → ordered story + family.
+      // Verdict/score/category untouched — the engine still owns them.
+      final chain = buildSignalChain(
+        signals: out.signals,
+        breakdown: out.breakdown,
+        verdict: out.verdict,
+        score: out.score,
+      );
       final event = EventLog.fromScan(
         source: source,
         category: category,
@@ -94,6 +107,7 @@ class ScanPipeline {
         signals: out.signals,
         fullText: text,
         demo: demo,
+        family: chain.family.label,
       );
       try {
         await EventLog().log(event);
@@ -116,6 +130,8 @@ class ScanPipeline {
         latencyMs: lastLatencyMs,
         aiMs: lastAiMs,
         eventId: event.id,
+        family: chain.family,
+        chain: chain,
       );
     } catch (e) {
       debugPrint('[Pipeline] failed: $e');
@@ -137,6 +153,12 @@ class ScanPipeline {
         latencyMs: 0,
         aiMs: 0,
         eventId: '',
+        family: ScamFamily.none,
+        chain: SignalChain(
+            family: ScamFamily.none,
+            verdict: Verdict.safe,
+            score: 0,
+            steps: const []),
       );
     }
   }

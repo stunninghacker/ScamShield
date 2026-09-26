@@ -144,7 +144,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700)),
                           subtitle: Text(
-                              '${_when(e.timestamp)} · ${e.source} · ${e.evidenceCount} evidence · ${e.action}',
+                              '${_when(e.timestamp)} · ${e.source}${e.family.isNotEmpty ? ' · ${e.family}' : ''} · ${e.evidenceCount} evidence · ${e.action}',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis),
                           trailing: Text('${e.score}',

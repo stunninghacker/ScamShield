@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../analysis/attack_chain.dart';
 import '../analysis/scan_pipeline.dart';
 import '../analysis/verdict_report.dart';
 import '../llm/prompt_template.dart';
@@ -51,14 +52,30 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
-  Future<void> _action(String label, String detail) async {
-    if (widget.result.eventId.isNotEmpty) {
+  Future<void> _action(String label, String detail) async {    if (widget.result.eventId.isNotEmpty) {
       await EventLog().setAction(widget.result.eventId, label);
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Marked as "$label". $detail')));
     setState(() {});
+  }
+
+  /// Strength + span count line for one evidence card (chain-ordered data).
+  Widget? _signalStrengthLine(PipelineResult r, String id) {
+    ChainStep? hit;
+    for (final s in r.chain.steps) {
+      if (s.signal.id == id) {
+        hit = s;
+        break;
+      }
+    }
+    final s = hit;
+    if (s == null) return null;
+    final n = s.signal.evidence.length;
+    return Text(
+        '${s.stage} · evidence strength ${s.signal.strength.toStringAsFixed(2)} · $n span${n == 1 ? '' : 's'}',
+        style: const TextStyle(fontSize: 12, color: Colors.grey));
   }
 
   void _verifySheet() {
@@ -94,8 +111,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.result;
-    final c = riskColor(r.verdict, context);
+    final r = widget.result;    final c = riskColor(r.verdict, context);
     final bg = riskBg(r.verdict, context);
     final parts = contributionsFor(r.breakdown);
     final family = AppSettings.instance.familyMode;
@@ -113,6 +129,8 @@ class _ResultScreenState extends State<ResultScreen> {
                 ..writeln('ScamShield risk score: ${r.score}/100 '
                     '(${r.verdict.riskWord} RISK)')
                 ..writeln('Category: ${r.category}')
+                ..writeln('Family: ${r.family.label}')
+                ..writeln('Attack story: ${r.chain.steps.map((s) => '${s.stage}: ${s.signal.label}').join(' → ')}')
                 ..writeln('Evidence:');
               for (final p in parts) {
                 buf.writeln('+${p.weight} ${p.label}');
@@ -167,6 +185,12 @@ class _ResultScreenState extends State<ResultScreen> {
                               visualDensity:
                                   VisualDensity.compact),
                           Chip(
+                              label: Text(r.family.label),
+                              avatar: const Icon(Icons.hub_outlined,
+                                  size: 16),
+                              visualDensity:
+                                  VisualDensity.compact),
+                          Chip(
                               label: Text(r.source),
                               visualDensity:
                                   VisualDensity.compact),
@@ -217,6 +241,10 @@ class _ResultScreenState extends State<ResultScreen> {
             Text('DETECTED — WHY WE FLAGGED THIS',
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 6),
+            if (r.chain.steps.isNotEmpty) ...[
+              _AttackStory(steps: r.chain.steps),
+              const SizedBox(height: 8),
+            ],
             if (parts.isEmpty)
               const Card(
                   child: ListTile(
@@ -228,6 +256,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.flag_outlined),
                   title: Text(p.label),
+                  subtitle: _signalStrengthLine(r, p.id),
                   trailing: Text('+${p.weight}',
                       style: const TextStyle(
                           fontWeight: FontWeight.w800, fontSize: 16)),
@@ -328,6 +357,56 @@ class _ResultScreenState extends State<ResultScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Ordered attack story: Trust → Pressure → Lure → Vector → Harvest →
+/// Cash-out. Steps come pre-sorted from the chain (canonical order, not
+/// text order).
+class _AttackStory extends StatelessWidget {
+  final List<ChainStep> steps;
+  const _AttackStory({required this.steps});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ATTACK STORY — how this scam plays out',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (var i = 0; i < steps.length; i++) ...[
+                  if (i > 0)
+                    const Text('→',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.grey)),
+                  Chip(
+                    label: Text(
+                        '${steps[i].stage}: ${steps[i].signal.label}',
+                        style: const TextStyle(fontSize: 12)),
+                    visualDensity: VisualDensity.compact,
+                    avatar: CircleAvatar(
+                      radius: 10,
+                      child: Text('${i + 1}',
+                          style: const TextStyle(fontSize: 11)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
