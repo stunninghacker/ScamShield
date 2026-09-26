@@ -9,6 +9,7 @@ import '../models/verdict.dart';
 import '../settings/app_settings.dart';
 import 'widgets/highlighted_text.dart';
 import 'widgets/risk_widgets.dart';
+import 'why_screen.dart';
 
 /// Evidence-first result: verdict → why (weighted evidence) → action.
 /// [staged] reveals sections progressively for Demo Mode drama.
@@ -213,6 +214,17 @@ class _ResultScreenState extends State<ResultScreen> {
                 style:
                     const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => WhyScreen(result: r))),
+              icon: const Icon(Icons.help_outline),
+              label: const Text('Why this verdict?'),
+            ),
+          ),
           if (r.context.isNotEmpty) ...[
             const SizedBox(height: 8),
             Wrap(
