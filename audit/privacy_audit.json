@@ -1,0 +1,123 @@
+{
+  "report": "ScamShield Privacy & Network Audit",
+  "version": "1.0",
+  "date": "2026-09-26",
+  "scope": "Full application source: pubspec.yaml, Android manifests, lib/, assets/, test/",
+  "verdict": "PASS — app is fully offline; no network invocations, no secrets, no telemetry",
+
+  "dependencies": {
+    "network_capable_packages": [],
+    "declared": [
+      { "package": "flutter_gemma", "network": false, "note": "local on-device LLM inference; model never downloaded by app" },
+      { "package": "google_mlkit_text_recognition", "network": false, "note": "ML Kit on-device text recognition" },
+      { "package": "receive_sharing_intent", "network": false, "note": "IPC from other apps only" },
+      { "package": "shared_preferences", "network": false, "note": "local key-value storage" },
+      { "package": "path_provider", "network": false, "note": "local filesystem paths" },
+      { "package": "mobile_scanner", "network": false, "note": "camera frame decoding only" },
+      { "package": "image_picker", "network": false, "note": "local gallery/camera access" }
+    ],
+    "absent": ["http", "dio", "socket", "web_socket_channel", "firebase_*", "analytics", "crashlytics"],
+    "check": "PASS"
+  },
+
+  "permissions": {
+    "release_manifest": "android/app/src/main/AndroidManifest.xml",
+    "internet_permission": false,
+    "allow_backup": false,
+    "network_security_config": "not present (no cleartext traffic possible without INTERNET)",
+    "debug_manifest_note": "debug manifest declares INTERNET for Flutter tooling only; not packaged in release",
+    "check": "PASS"
+  },
+
+  "network_invocations": {
+    "dart_io_socket": 0,
+    "websocket": 0,
+    "http_client": 0,
+    "uri_http": 0,
+    "fetches_in_lib": 0,
+    "dart_io_imports": [
+      { "file": "lib/ocr/ocr_service.dart", "usage": "File I/O for image input" },
+      { "file": "lib/share/share_handler.dart", "usage": "File I/O for shared attachments" },
+      { "file": "lib/ui/lens_screen.dart", "usage": "File I/O for camera/QR images" }
+    ],
+    "check": "PASS"
+  },
+
+  "url_handling": {
+    "urls_fetched": false,
+    "mechanism": "lib/analysis/url_intel.dart parses URLs locally (heuristic risk scoring only)",
+    "declared_unavailable": [
+      "Redirect chain (would require fetching the URL — never done)",
+      "Domain age / reputation (no reputation API configured)"
+    ],
+    "verified_by": "test/privacy_audit_test.dart — PRIVACY AUDIT — URL fetching",
+    "check": "PASS"
+  },
+
+  "clipboard": {
+    "hard_size_limit_bytes": 262144,
+    "max_events_per_import": 100,
+    "oversized_payload_rejected": true,
+    "enforcement": "EventLog.importJson (lib/events/threat_events.dart:199-217)",
+    "verified_by": "test/privacy_audit_test.dart — PRIVACY AUDIT — clipboard hard limits",
+    "check": "PASS"
+  },
+
+  "history_data_scope": {
+    "storage": "shared_preferences, key scamshield_events_v2, on-device only",
+    "stores": ["category", "risk", "score", "confidence", "signal ids", "evidence count", "redacted preview (digits masked)", "action", "family", "chainId/stage"],
+    "never_stores": ["full raw message", "OTP codes", "passwords"],
+    "user_controls": ["clear all", "export/import (user-initiated only)"],
+    "verified_by": "test/privacy_audit_test.dart — PRIVACY AUDIT — history stores only indicators",
+    "check": "PASS"
+  },
+
+  "secrets": {
+    "api_keys_found": 0,
+    "hardcoded_credentials_found": 0,
+    "bundled_models": "assets/models/ contains only .gitkeep placeholder; no .task file committed",
+    "gemma_install": "lib/llm/gemma_service.dart installs from local asset only; never downloads",
+    "check": "PASS"
+  },
+
+  "ai_privacy": {
+    "explanation_source": "RuleFallbackProvider (local, deterministic) when Gemma model absent",
+    "fallback_behavior": "never claims certainty, never invents signals, never claims network/AI connectivity",
+    "telemetry": "none",
+    "check": "PASS"
+  },
+
+  "telemetry_analytics": {
+    "packages": [],
+    "outbound_requests": 0,
+    "crash_reporting": "none",
+    "check": "PASS"
+  },
+
+  "settings_storage": {
+    "keys": ["scamshield_dark", "scamshield_family", "scamshield_contact"],
+    "location": "local shared_preferences",
+    "check": "PASS"
+  },
+
+  "automated_verification": {
+    "test_file": "test/privacy_audit_test.dart",
+    "tests": 26,
+    "all_passing": true,
+    "covers": [
+      "network dependencies absent",
+      "URLs never fetched",
+      "clipboard 256KB/100-event limits enforced",
+      "history stores indicators only (no raw text/digits)",
+      "no secrets/API keys bundled",
+      "AI fallback safe and local",
+      "no telemetry packages",
+      "local-first persistence"
+    ]
+  },
+
+  "residual_risks": [
+    { "risk": "Debug builds include INTERNET permission (Flutter tooling)", "severity": "informational", "mitigation": "release APK uses main manifest without INTERNET" },
+    { "risk": "User can paste clipboard content; only indicator data is retained", "severity": "low", "mitigation": "redacted preview + size caps" }
+  ]
+}

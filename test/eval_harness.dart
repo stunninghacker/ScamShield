@@ -764,7 +764,7 @@ void main() {
           if (engine.analyze(c.input).signals.isNotEmpty) withSignals++;
         }
         expect(withSignals / catCases.length, greaterThanOrEqualTo(0.30),
-            reason: '$cat: ${withSignals}/${catCases.length} have signals');
+            reason: '$cat: $withSignals/${catCases.length} have signals');
       }
     });
     test('high-confidence expected signals match (>=80%)', () {
@@ -780,7 +780,7 @@ void main() {
         if (found.contains(c.expectedSignals.first)) matched++;
       }
       expect(matched / sample.length, greaterThanOrEqualTo(0.80),
-          reason: '${matched}/${sample.length} matched primary signals');
+          reason: '$matched/${sample.length} matched primary signals');
     });
   });
 
