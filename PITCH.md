@@ -11,12 +11,12 @@ a scary "account BLOCKED in 24 hours" SMS with a lookalike link — and obey.
   (airplane-mode demo proves it).
 - **Latency & cost:** verdict in milliseconds, no server bill, works in
   low-connectivity India.
-- **Hackathon fit:** the theme is "AI, preferably on-device" — Gemma + ML Kit
-  run fully offline, no API key, no quota.
+- **Hackathon fit:** the theme is "AI, preferably on-device" — Gemma (bring
+  your own `.task` file) + ML Kit run fully offline, no API key, no quota.
 
 ## Hybrid rule + LLM design (why it wins)
-- **Rules OWN the verdict** (deterministic, instant, testable). 7 India-tuned
-  signals with exact highlighted spans — the demo can't misfire.
+- **Rules OWN the verdict** (deterministic, instant, testable). 10 India-tuned
+  signals with exact highlighted spans — every hit traces to a rule you can see.
 - **Gemma ONLY explains** (plain language a parent understands), grounded to
   fired signals with a sanitizer + fallback. It can never invent threats or
   flip the verdict — including the crucial restraint moment: a genuine bank

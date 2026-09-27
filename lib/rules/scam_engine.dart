@@ -1,7 +1,9 @@
 /// The RULE ENGINE — owns the verdict. Deterministic, pure Dart, offline.
 ///
 /// Pipeline: run every detector -> composite impersonation check ->
-/// cap link contribution -> sum -> clamp 0..100 -> map to Verdict.
+/// cap link contribution -> sum -> clamp 0..100 -> floor at SUSPICIOUS
+/// when at least one pattern fired -> DEMAND GATE (see analyze()) ->
+/// map to Verdict.
 ///
 /// The LLM NEVER calls this file and NEVER changes its output.
 library;
@@ -17,7 +19,9 @@ class EngineResult {
   final Verdict verdict;
 
   /// Explainable contribution per signal class, e.g. {LINK_RISK: 55}.
-  /// Powers the "WHY WE FLAGGED THIS" evidence view. Sums to [score].
+  /// Powers the "WHY WE FLAGGED THIS" evidence view. These are the raw
+  /// per-class weights and sum to the pre-gate score; the demand gate may
+  /// then clamp a warn-only message down to 59 so score and verdict agree.
   final Map<String, int> breakdown;
   const EngineResult({
     required this.signals,
@@ -94,12 +98,6 @@ class ScamEngine {
     if (score > 100) score = 100;
     if (score < 0) score = 0;
 
-    final verdict = score >= RuleThresholds.dangerous
-        ? Verdict.dangerous
-        : score >= RuleThresholds.suspicious
-            ? Verdict.suspicious
-            : Verdict.safe;
-
     final signals = [
       ...cappedLinks,
       ...secrets,
@@ -112,6 +110,46 @@ class ScamEngine {
       ...arrest,
       ...impersonation,
     ]..sort((a, b) => a.start.compareTo(b.start));
+
+    // Fail-open fix: a message we found evidence in must never be reported
+    // as SAFE. Any fired pattern puts the score at least at the SUSPICIOUS
+    // threshold; the per-class breakdown above still shows exactly which
+    // patterns were found (so the explanation can never invent one).
+    if (signals.isNotEmpty && score < RuleThresholds.suspicious) {
+      score = RuleThresholds.suspicious;
+    }
+
+    // DEMAND GATE — the verdict rubric (mirrored in
+    // test/eval_harness_test.dart), so WARN and BLOCK are decided by what
+    // the message ASKS FOR, not by how many words it uses:
+    //   BLOCK  = it demands something (credential, remote control, a
+    //            coercive threat, money) OR it couples an urgency threat
+    //            with a link or a lure — that is the attack, in progress.
+    //   WARN   = every other fired pattern (a lone link, a lone lure,
+    //            brand + link, brand + callback). Evidence keeps stacking
+    //            inside the band, but it cannot cross into BLOCK on its
+    //            own: we do not block people on a bare URL.
+    // The score is clamped into the band so `score/100` and the verdict
+    // always agree; the breakdown stays the raw per-class weights (it is
+    // evidence provenance, not a second score).
+    final ids = signals.map((s) => s.id).toSet();
+    final demand = ids.contains('SECRET_REQUEST') ||
+        ids.contains('REMOTE_ACCESS') ||
+        ids.contains('DIGITAL_ARREST') ||
+        ids.contains('PAYMENT_PULL');
+    final threatWithVector = ids.contains('URGENCY_THREAT') &&
+        (ids.contains('LINK_RISK') ||
+            ids.contains('REWARD_LURE') ||
+            ids.contains('JOB_LURE'));
+    if (!demand && !threatWithVector && score >= RuleThresholds.dangerous) {
+      score = RuleThresholds.dangerous - 1;
+    }
+
+    final verdict = score >= RuleThresholds.dangerous
+        ? Verdict.dangerous
+        : score >= RuleThresholds.suspicious
+            ? Verdict.suspicious
+            : Verdict.safe;
 
     return EngineResult(
         signals: signals,

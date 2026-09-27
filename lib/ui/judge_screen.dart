@@ -73,7 +73,8 @@ class JudgeScreen extends StatelessWidget {
           ]),
           _card(context, 'Model', const [
             'flutter_gemma 0.9.0 (MediaPipe LLM Inference)',
-            'gemma-3-1b-it.task (bundled by user into assets/models/)',
+            'gemma-3-1b-it.task NOT in repo — drop your own into '
+                'assets/models/ (see AI STATUS for live fallback state)',
             'Temp 0.2 · topK 1 · grounded prompt + fallback',
             'Stayed on 0.9.0 (1.8.x exists) for pre-competition stability',
           ]),
@@ -98,7 +99,8 @@ class JudgeScreen extends StatelessWidget {
           ]),
           _card(context, 'Device', const [
             'Target: Android, minSdk 26',
-            'Demo-proof: airplane mode ON, all features above stay live',
+            'Offline by construction: no INTERNET permission, so no feature '
+                'can depend on the network (airplane mode changes nothing)',
           ]),
         ],
       ),

@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../analysis/qr_intel.dart';
+import '../analysis/scan_pipeline.dart';
 import '../analysis/url_intel.dart';
-import '../analysis/verdict_report.dart';
-import '../events/threat_events.dart';
 import '../models/verdict.dart';
 import '../ocr/ocr_service.dart';
+import 'result_screen.dart';
 import 'scan_actions.dart';
 import 'widgets/risk_widgets.dart';
 
@@ -47,6 +47,7 @@ class _QrTabState extends State<_QrTab>
     with AutomaticKeepAliveClientMixin {
   final _controller = MobileScannerController();
   QrReport? _report;
+  PipelineResult? _result;
   bool _busy = false;
 
   @override
@@ -63,49 +64,26 @@ class _QrTabState extends State<_QrTab>
     setState(() => _busy = true);
     await _controller.stop();
     final rep = analyzeQr(raw);
-    // Log an indicator event (never the raw payload beyond preview).
-    String risk = 'suspicious';
-    int score = 50;
-    String category = 'QR Scan';
+    // Structural QR cues are a verdict FLOOR, never a ceiling: the text
+    // engine runs on the payload first, and these may only escalate it.
+    Verdict? floor;
     if (rep.kind == QrKind.upiPayment) {
-      category = 'Payment Scam';
-      if (rep.upiPayee == null) {
-        risk = 'dangerous';
-        score = 85;
-      }
-    } else if (rep.kind == QrKind.url && rep.urlReport != null) {
-      final u = rep.urlReport!;
-      risk = u.risk == 'high'
-          ? 'dangerous'
-          : u.risk == 'medium'
-              ? 'suspicious'
-              : 'safe';
-      score = u.risk == 'high' ? 85 : u.risk == 'medium' ? 50 : 5;
-      category = 'Phishing Link';
-    } else if (rep.kind == QrKind.text ||
-        rep.kind == QrKind.contact ||
-        rep.kind == QrKind.wifi) {
-      risk = 'safe';
-      score = 5;
-      category = 'QR Scan';
+      // Payment QR: offline analysis cannot verify who gets paid, so the
+      // app's standing rule is "treat as potential payment scam".
+      floor = Verdict.dangerous;
+    } else if (rep.urlReport?.risk == 'high') {
+      floor = Verdict.dangerous;
+    } else if (rep.urlReport?.risk == 'medium') {
+      floor = Verdict.suspicious;
     }
-    try {
-      await EventLog().log(EventLog.fromScan(
-        source: 'qr',
-        category: category,
-        risk: risk,
-        score: score,
-        confidence: confidenceFor(score,
-            hasSignals: risk != 'safe'),
-        signals: const [],
-        fullText: raw,
-      ));
-    } catch (_) {
-      // Event logging is best-effort; the QR result still shows.
-    }
+    // One engine run = one logged event: verdict, score, spans and
+    // explanation all come from the same pipeline every other tab uses.
+    final res = await ScanPipeline.instance
+        .analyze(raw, source: 'qr', verdictFloor: floor);
     if (!mounted) return;
     setState(() {
       _report = rep;
+      _result = res;
       _busy = false;
     });
   }
@@ -113,7 +91,9 @@ class _QrTabState extends State<_QrTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_report != null) return _qrResult(context, _report!);
+    if (_report != null && _result != null) {
+      return _qrResult(context, _report!, _result!);
+    }
     return Column(
       children: [
         Expanded(
@@ -171,10 +151,10 @@ class _QrTabState extends State<_QrTab>
     );
   }
 
-  Widget _qrResult(BuildContext context, QrReport rep) {
-    final danger = rep.kind == QrKind.upiPayment ||
-        (rep.urlReport?.risk == 'high');
-    final v = danger ? Verdict.dangerous : Verdict.suspicious;
+  Widget _qrResult(BuildContext context, QrReport rep, PipelineResult res) {
+    // Verdict/score come from the SAME pipeline as every other input —
+    // the QR structural rules only raised it (see _onCode floor).
+    final v = res.verdict;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -192,18 +172,23 @@ class _QrTabState extends State<_QrTab>
                         CrossAxisAlignment.start,
                     children: [
                   Text(
-                      rep.kind == QrKind.upiPayment
-                          ? '⚠️ POTENTIAL PAYMENT SCAM'
+                      rep.kind == QrKind.upiPayment &&
+                              v == Verdict.dangerous
+                          ? 'POTENTIAL PAYMENT SCAM'
                           : rep.kindLabel,
                       style: TextStyle(
                           color: riskColor(v, context),
                           fontSize: 19,
                           fontWeight: FontWeight.w800)),
                   RiskBadge(verdict: v, compact: true),
+                  Text('${res.score}/100 · ${res.category}',
+                      style: const TextStyle(fontSize: 13)),
                 ])),
           ]),
         ),
         const SizedBox(height: 12),
+        ScoreBar(score: res.score, verdict: v),
+        const SizedBox(height: 8),
         Card(
             child: ListTile(
                 title: const Text('Decoded payload'),
@@ -230,6 +215,7 @@ class _QrTabState extends State<_QrTab>
               child: FilledButton(
                   onPressed: () => setState(() {
                         _report = null;
+                        _result = null;
                         _controller.start();
                       }),
                   child: const Text('Analyze again'))),
@@ -237,18 +223,19 @@ class _QrTabState extends State<_QrTab>
           Expanded(
               child: OutlinedButton(
                   onPressed: () {
-                    if (rep.kind == QrKind.url) {
-                      runTextScan(context,
-                          'Scanned QR links to: ${rep.raw}',
-                          source: 'qr');
-                    } else {
+                    if (rep.kind == QrKind.upiPayment) {
                       ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text(
                                   'Do not pay. Verify the recipient through the official app.')));
                     }
+                    // The payload already ran through the engine (one
+                    // event, one verdict) — show that report instead of
+                    // scanning the same payload twice.
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ResultScreen(result: res)));
                   },
-                  child: const Text('Verify'))),
+                  child: const Text('Why this verdict'))),
         ]),
       ],
     );

@@ -8,6 +8,7 @@ import 'demo_screen.dart';
 import 'lens_screen.dart';
 import 'radar_screen.dart';
 import 'scan_actions.dart';
+import 'settings_screen.dart';
 import 'timeline_screen.dart';
 import 'widgets/risk_widgets.dart';
 
@@ -197,7 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     AppSettings.instance.familyMode
                         ? 'Family: ON'
                         : 'Family: off',
-                    'Simple mode', () => _go(const DemoScreen())),
+                    'Protect My Family', () => _go(const SettingsScreen())),
               ],
             ),
             const SizedBox(height: 16),

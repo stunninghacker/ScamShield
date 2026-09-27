@@ -1,0 +1,148 @@
+{
+  "total": 55,
+  "familyCorrect": 47,
+  "familyAccuracy": "0.8545",
+  "verdictCorrect": 46,
+  "verdictAccuracy": "0.8364",
+  "legitFlaggedDangerous": 1,
+  "scamMissedSafe": 5,
+  "signalHit": {
+    "LINK_RISK": 11,
+    "URGENCY_THREAT": 3,
+    "SECRET_REQUEST": 5,
+    "DIGITAL_ARREST": 4,
+    "PAYMENT_PULL": 11,
+    "REMOTE_ACCESS": 2,
+    "JOB_LURE": 4,
+    "CALLBACK": 1,
+    "REWARD_LURE": 6
+  },
+  "signalMiss": {
+    "REWARD_LURE": 1,
+    "PAYMENT_PULL": 5,
+    "SECRET_REQUEST": 3
+  },
+  "misses": [
+    {
+      "id": "h22",
+      "type": "family",
+      "expected": "deliveryScam",
+      "got": "none",
+      "input": "Your Flipkart order 4471 is held. Pay the Rs.19 postage charge to get it delivered"
+    },
+    {
+      "id": "h22",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "safe",
+      "input": "Your Flipkart order 4471 is held. Pay the Rs.19 postage charge to get it delivered"
+    },
+    {
+      "id": "h24",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "suspicious",
+      "input": "Your Amazon package will be returned. Pay the re-delivery fee here: http://amzn-redeliver.xyz"
+    },
+    {
+      "id": "h26",
+      "type": "family",
+      "expected": "investmentScam",
+      "got": "phishing",
+      "input": "Put Rs.10,000 into our FX plan and get Rs.45,000 back in 30 days"
+    },
+    {
+      "id": "h26",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "suspicious",
+      "input": "Put Rs.10,000 into our FX plan and get Rs.45,000 back in 30 days"
+    },
+    {
+      "id": "h32",
+      "type": "family",
+      "expected": "bankingFraud",
+      "got": "none",
+      "input": "EPFO approved your PF claim. Share your UPI ID to get it credited"
+    },
+    {
+      "id": "h32",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "safe",
+      "input": "EPFO approved your PF claim. Share your UPI ID to get it credited"
+    },
+    {
+      "id": "h33",
+      "type": "family",
+      "expected": "accountTakeover",
+      "got": "none",
+      "input": "Your WhatsApp code is 918-273. Share it to complete registration"
+    },
+    {
+      "id": "h33",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "safe",
+      "input": "Your WhatsApp code is 918-273. Share it to complete registration"
+    },
+    {
+      "id": "h34",
+      "type": "family",
+      "expected": "accountTakeover",
+      "got": "none",
+      "input": "Enter the verification code sent to your email to confirm your identity"
+    },
+    {
+      "id": "h34",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "safe",
+      "input": "Enter the verification code sent to your email to confirm your identity"
+    },
+    {
+      "id": "h35",
+      "type": "family",
+      "expected": "accountTakeover",
+      "got": "none",
+      "input": "WhatsApp support: your account will be banned. Send us the 2FA code to review it"
+    },
+    {
+      "id": "h35",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "safe",
+      "input": "WhatsApp support: your account will be banned. Send us the 2FA code to review it"
+    },
+    {
+      "id": "h39",
+      "type": "verdict",
+      "expected": "dangerous",
+      "got": "suspicious",
+      "input": "Electricity will be disconnected today. Pay the outstanding bill now: http://bijli-pay.top"
+    },
+    {
+      "id": "l03",
+      "type": "family",
+      "expected": "none",
+      "got": "accountTakeover",
+      "input": "Your OTP for transaction is 8899. Do not share this OTP with anyone."
+    },
+    {
+      "id": "l03",
+      "type": "verdict",
+      "expected": "safe",
+      "got": "dangerous",
+      "input": "Your OTP for transaction is 8899. Do not share this OTP with anyone."
+    },
+    {
+      "id": "l15",
+      "type": "family",
+      "expected": "none",
+      "got": "phishing",
+      "input": "Conference call link: https://meet.example.com/abc - join at 4 PM"
+    }
+  ],
+  "generated": "2026-09-27T07:57:59.502544Z",
+  "note": "Held-out phrasing set: labels written from the rubric before the engine ran. Measures detection on unseen wording, not rubric consistency. Misses are listed verbatim."
+}

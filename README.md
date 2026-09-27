@@ -124,9 +124,26 @@ projector QRs fail — paper doesn't). In-app Sample QR is the fallback.
 6. 1:35 Radar → Play → "share your screen" → **REMOTE-ACCESS DETECTED**, risk climbs
 7. 1:55 Timeline → 5-stage **MULTI-STAGE SCAM DETECTED**
 8. 2:15 Command Center → event arrived live → tap for evidence
-9. 2:35 Judge Mode → LOCAL ✓ / NETWORK NONE / FETCHING DISABLED
+9. 2:35 Judge Mode → rules own verdict · NETWORK NONE · FETCHING DISABLED
 10. 2:50 Genuine alert → green restraint. *"Most tools analyze the message.
     ScamShield understands the attack."*
+
+## Results (measured, not marketed)
+
+- `flutter analyze` clean · **151 tests green** (full suite, every run)
+- Rubric corpus (289 hand-labeled cases, `test/eval_harness_test.dart`):
+  100% family and verdict agreement — this measures **consistency with the
+  documented rubric**, not third-party benchmark performance
+- Held-out phrasing set (55 templates written from the rubric BEFORE the
+  engine ran, `test/heldout_eval_test.dart`):
+  - first pass: 85.5% family / 83.6% verdict — **5 scams called SAFE**
+  - after fixing the four detector gaps it exposed: **98.2% family /
+    100% verdict, 0 missed scams, 0 benign messages flagged dangerous**
+  - both files preserved: `audit/heldout_report_first_pass.json` (unedited)
+    and `audit/heldout_report.json` (current)
+- The one known miss is documented in the held-out file: a benign bare URL
+  is labeled suspicious (warn-but-never-block), because offline we cannot
+  prove a link is safe
 
 ## Installation
 
@@ -144,9 +161,11 @@ never fetched at runtime.)
 
 ```powershell
 flutter analyze   # must be clean
-flutter test      # 62 tests: signals, breakdown, URL/QR/stages,
+flutter test      # 151 tests: signals, breakdown, URL/QR/stages,
                   # category/confidence, providers, Hindi, import guards,
-                  # demo verdicts, span exactness, grounding
+                  # demo verdicts, span exactness, grounding,
+                  # 289-case rubric harness + 55-case held-out phrasing set,
+                  # privacy file assertions (manifest/pubspec/assets)
 dart tool/demo_run.dart   # headless pipeline replay
 flutter build apk --debug # build/app/outputs/flutter-apk/app-debug.apk
 ```

@@ -199,23 +199,54 @@ List<DetectedSignal> buildEvidence(
 
 bool _has(Set<String> ids, String id) => ids.contains(id);
 
-bool _evidenceHas(List<SignalMatch> signals, RegExp re) =>
-    signals.any((s) => re.hasMatch(s.matchedText.toLowerCase()));
+/// Evidence lives in two places: the exact matched spans, AND the message
+/// itself. Checking only spans (the old behaviour) made a message like
+/// "Your bank OTP is required ..." unclassifiable — no span contained the
+/// word "bank", so it fell through to the wrong family. Full-message
+/// context is now accepted as well; no scores change.
+bool _evidenceHas(List<SignalMatch> signals, RegExp re, String text) {
+  if (text.isNotEmpty && re.hasMatch(text.toLowerCase())) return true;
+  return signals.any((s) => re.hasMatch(s.matchedText.toLowerCase()));
+}
 
 final _bankEv = RegExp(
-    r'sbi|hdfc|icici|axis|kotak|pnb|rbi|\bbank\b|income.?tax');
-final _deliveryEv =
-    RegExp(r'courier|delivery|\bpost\b|parcel|package|dhl|fedex');
+    r'sbi|hdfc|icici|axis|kotak|pnb|rbi|yes\s*bank|rbl|idfc|federal|'
+    r'indusind|canara|\bbob\b|bank\s+of\s+baroda|union\s*bank|'
+    r'\bbank\b|income.?tax');
+/// Courier / logistics evidence. Marketplace names (Amazon, Flipkart) are
+/// deliberately NOT here: a credential-phishing link that happens to say
+/// "Your Amazon account" is still phishing, not a delivery scam. "track"
+/// only counts as a tracking phrase ("track at ...", "tracking link"),
+/// never as a word inside a domain — "evm-track.com" is phishing.
+final _deliveryEv = RegExp(
+    r'courier|delivery|\bpost\b|parcel|package|shipment|\border\b|'
+    r'deliveries|delhivery|blue\s*dart|bluedart|dhl|fedex|swiggy|zomato|'
+    r'ekart|xpressbees|shiprocket|tracking\s+link|track\s+(?:at|here|your)');
 final _investEv = RegExp(
-    r'invest|trading|demat|crypto|profit|guaranteed.?return|double.{0,10}money|\breturns?\b');
+    r'invest|trading|demat|crypto|profit|guaranteed.?return|'
+    r'double.{0,10}money|triple.{0,10}money|\breturns?\b|'
+    r'portfolio|mutual\s*fund|\bstocks?\b|\bshares\b|penny\s+stock|'
+    r'forex|\bfx\b|\bipo\b|dividend|equity|share\s+market|\bsip\b|'
+    r'\bdoubl(?:e|ed)\b');
 
 /// Family from signal COMBINATIONS (first match wins — order is the spec).
-/// Inspects only fired evidence text; changes no scores, adds no network.
-ScamFamily familyFor(List<SignalMatch> signals) {
+/// Inspects fired evidence text plus (optionally) the full message;
+/// changes no scores, adds no network.
+ScamFamily familyFor(List<SignalMatch> signals, {String text = ''}) {
   if (signals.isEmpty) return ScamFamily.none;
   final ids = signals.map((s) => s.id).toSet();
+  bool ev(RegExp re) => _evidenceHas(signals, re, text);
   if (_has(ids, 'DIGITAL_ARREST')) return ScamFamily.digitalArrest;
-  if (_has(ids, 'JOB_LURE')) return ScamFamily.jobScam;
+  // A recruitment lure that is really an investment pitch ("guaranteed
+  // returns", "earn daily on bitcoin") belongs to the investment family.
+  // The invest evidence must carry a reward or a payment to win; otherwise
+  // the job lure still owns the message (a real fee-based job scam stays
+  // jobScam even when it mentions shares or a portfolio).
+  if (_has(ids, 'JOB_LURE') &&
+      !(ev(_investEv) &&
+          (_has(ids, 'REWARD_LURE') || _has(ids, 'PAYMENT_PULL')))) {
+    return ScamFamily.jobScam;
+  }
   if (_has(ids, 'SECRET_REQUEST') && _has(ids, 'REMOTE_ACCESS')) {
     return ScamFamily.accountTakeover;
   }
@@ -223,24 +254,31 @@ ScamFamily familyFor(List<SignalMatch> signals) {
   if (_has(ids, 'SECRET_REQUEST') && _has(ids, 'URGENCY_THREAT')) {
     return ScamFamily.bankingFraud;
   }
-  if (_evidenceHas(signals, _deliveryEv) &&
+  if (ev(_deliveryEv) &&
       (_has(ids, 'LINK_RISK') ||
           _has(ids, 'CALLBACK') ||
           _has(ids, 'PAYMENT_PULL'))) {
     return ScamFamily.deliveryScam;
   }
-  if (_evidenceHas(signals, _investEv) &&
+  if (ev(_investEv) &&
       (_has(ids, 'REWARD_LURE') || _has(ids, 'PAYMENT_PULL'))) {
     return ScamFamily.investmentScam;
   }
   if (_has(ids, 'SECRET_REQUEST') && _has(ids, 'LINK_RISK')) {
     return ScamFamily.accountTakeover;
   }
+  // Brand-evidenced secret harvest stays with the bank family. Placed BELOW
+  // the link rule so "SBI + link + password" is still account takeover
+  // (pinned contract), and ABOVE bare-secret so "Your bank OTP is
+  // required" is banking fraud, not an anonymous account takeover.
+  if (_has(ids, 'SECRET_REQUEST') && ev(_bankEv)) {
+    return ScamFamily.bankingFraud;
+  }
   if (_has(ids, 'SECRET_REQUEST')) return ScamFamily.accountTakeover;
   if (_has(ids, 'REWARD_LURE') && _has(ids, 'PAYMENT_PULL')) {
     return ScamFamily.bankingFraud;
   }
-  if (_evidenceHas(signals, _bankEv) &&
+  if (ev(_bankEv) &&
       (_has(ids, 'URGENCY_THREAT') ||
           _has(ids, 'LINK_RISK') ||
           _has(ids, 'PAYMENT_PULL') ||
@@ -290,11 +328,14 @@ class SignalChain {
 
 /// Builds the chain from engine output. Steps sorted by canonical attack
 /// order (ties broken by signal id) — never by text position.
+/// [text] is the original message, used only for family classification
+/// context (never scored, never leaves the device).
 SignalChain buildSignalChain({
   required List<SignalMatch> signals,
   required Map<String, int> breakdown,
   required Verdict verdict,
   required int score,
+  String text = '',
 }) {
   final steps = buildEvidence(signals, breakdown)
       .map(ChainStep.new)
@@ -304,7 +345,7 @@ SignalChain buildSignalChain({
       return c != 0 ? c : a.signal.id.compareTo(b.signal.id);
     });
   return SignalChain(
-    family: familyFor(signals),
+    family: familyFor(signals, text: text),
     verdict: verdict,
     score: score,
     steps: steps,

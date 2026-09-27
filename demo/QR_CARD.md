@@ -33,7 +33,7 @@ below the header.
 - Kind: UPI payment request → payee `refund-cell@okhdfcbank`, ₹999
 - Note: *"This QR ASKS YOU to pay… Anyone saying 'scan to RECEIVE money'
   is lying: scanning can only SEND."*
-- Actions: Analyze again / Verify
+- Actions: Analyze again / Why this verdict
 
 ## Spoken line (15 seconds)
 

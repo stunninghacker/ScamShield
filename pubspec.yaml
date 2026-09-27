@@ -9,7 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # On-device LLM (MediaPipe LLM Inference wrapper). Model file bundled locally.
+  # On-device LLM (MediaPipe LLM Inference wrapper). The model file is NOT
+  # committed — drop your own .task into assets/models/ (fallback explains
+  # without it; verdicts are identical either way).
   flutter_gemma: ^0.9.0
   # Offline OCR (on-device text recognition, no network after model on-device)
   google_mlkit_text_recognition: ^0.15.0

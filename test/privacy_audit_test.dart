@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scamshield/analysis/url_intel.dart';
 import 'package:scamshield/events/threat_events.dart';
 import 'package:scamshield/llm/ai_provider.dart';
+import 'package:scamshield/llm/gemma_service.dart';
 import 'package:scamshield/llm/prompt_template.dart';
 import 'package:scamshield/models/signal_match.dart';
 import 'package:scamshield/models/verdict.dart';
@@ -11,40 +13,70 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Automated privacy and network behavior audit tests.
 ///
-/// These tests VERIFY the privacy model programmatically:
-///  - no network-capable imports leak into lib/
-///  - URLs are never fetched
-///  - clipboard import has hard size limit
-///  - history stores only indicator data (no raw text)
-///  - no secrets/API keys are bundled
-///  - AI explanation has safe fallback
+/// Every check here reads the REAL files in this repository — manifest,
+/// pubspec, Dart sources, assets — and fails if the property regresses.
+/// No placeholders: if a claim in the README is not enforced by a file
+/// assertion below, it is not claimed.
 ///
 /// Run with: `flutter test test/privacy_audit_test.dart`
+
+String _read(String rel) => File(rel).readAsStringSync();
+
+List<File> _libFiles() => Directory('lib')
+    .listSync(recursive: true)
+    .whereType<File>()
+    .where((f) => f.path.endsWith('.dart'))
+    .toList();
+
+String _libSrc() =>
+    _libFiles().map((f) => f.readAsStringSync()).join('\n');
 
 void main() {
   group('PRIVACY AUDIT — network dependencies', () {
     test('no INTERNET permission in release manifest', () {
-      // The release manifest (android/app/src/main/AndroidManifest.xml)
-      // intentionally omits <uses-permission android:name="android.permission.INTERNET"/>.
-      // Only the debug manifest has it (for Flutter tooling).
-      // Verified manually: no INTERNET in main/AndroidManifest.xml.
-      expect(true, isTrue); // placeholder — verified by static analysis
+      final manifest = _read('android/app/src/main/AndroidManifest.xml');
+      // Strip comments first: the manifest deliberately DOCUMENTS the rule
+      // ("Do NOT add ... INTERNET"), which would fool a naive contains().
+      final stripped =
+          manifest.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+      expect(stripped, isNot(contains('android.permission.INTERNET')),
+          reason: 'the demo runs in airplane mode by design');
     });
 
     test('no allowBackup in manifest', () {
-      // Full-backup would leak local data to PC.
-      expect(true, isTrue); // verified: no allowBackup in manifest
+      final manifest = _read('android/app/src/main/AndroidManifest.xml');
+      final stripped =
+          manifest.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+      expect(stripped, isNot(contains('android:allowBackup')),
+          reason: 'full backup would leak local history to a PC');
     });
 
-    test('no http package in pubspec.yaml', () {
-      // dart:io and package:http are not imported in lib/.
-      // Only dart:io for File I/O (OCR, share handler).
-      expect(true, isTrue); // verified by static grep
+    test('no http / dio / websocket package in pubspec.yaml', () {
+      final pubspec = _read('pubspec.yaml');
+      expect(RegExp(r'^\s*(http|dio|web_socket_channel)\s*:', multiLine: true)
+              .hasMatch(pubspec),
+          isFalse,
+          reason: 'network packages would break the offline guarantee');
+      expect(pubspec, isNot(contains('package:http')));
     });
 
     test('no socket/WebSocket/HttpClient usage in lib/', () {
-      // Verified: no Socket, WebSocket, HttpClient, IsoSocket imports.
-      expect(true, isTrue);
+      // Checks imports and constructor calls — the words themselves may
+      // appear in safety copy (e.g. the Judge screen writes "WebSocket:
+      // none"), which is a claim, not capability.
+      final src = _libSrc();
+      for (final token in [
+        'HttpClient(',
+        'WebSocket(',
+        'Socket(',
+        'package:http',
+        'package:dio',
+        'package:web_socket',
+      ]) {
+        expect(src.contains(token), isFalse,
+            reason: 'lib/ must never open a network connection (found: '
+                '$token)');
+      }
     });
   });
 
@@ -195,29 +227,53 @@ void main() {
 
   group('PRIVACY AUDIT — no secrets or API keys bundled', () {
     test('no API keys in pubspec.yaml', () {
-      // pubspec.yaml has no apiKey, no google-services, no secrets.
-      // Only flutter dependencies.
-      expect(true, isTrue); // verified by static analysis
+      final pubspec = _read('pubspec.yaml');
+      expect(RegExp(r'AIza[0-9A-Za-z_\-]{30,}').hasMatch(pubspec), isFalse,
+          reason: 'Google-style API key found in pubspec');
+      expect(
+          RegExp(r'^\s*(api[_-]?key|client[_-]?secret|access[_-]?token)\s*:',
+                  caseSensitive: false, multiLine: true)
+              .hasMatch(pubspec),
+          isFalse,
+          reason: 'secret-looking key declared in pubspec');
     });
 
     test('no hardcoded secrets in lib/ Dart code', () {
-      // Verified: no apiKey/API_KEY/secret/token patterns in lib/.
-      // Only normal English words like "password" in safety advice.
-      expect(true, isTrue);
+      final src = _libSrc();
+      expect(RegExp(r'AIza[0-9A-Za-z_\-]{30,}').hasMatch(src), isFalse,
+          reason: 'Google-style API key hardcoded in lib/');
+      expect(RegExp(r'\bsk-[A-Za-z0-9]{20,}').hasMatch(src), isFalse,
+          reason: 'OpenAI-style secret key hardcoded in lib/');
+      expect(RegExp(r'Bearer\s+[A-Za-z0-9._\-]{20,}').hasMatch(src), isFalse,
+          reason: 'bearer token hardcoded in lib/');
     });
 
     test('assets/models/ has only .gitkeep placeholder', () {
-      // The Gemma .task model file is NOT bundled in the repo.
-      // assets/models/.gitkeep is a placeholder.
-      // If the user adds a .task file, it stays local.
-      expect(true, isTrue); // verified: no .task in assets/models/
+      final entries = Directory('assets/models').listSync();
+      expect(entries, isNotEmpty);
+      expect(entries.any((e) => e.path.endsWith('.task')), isFalse,
+          reason: 'the Gemma model must never be committed to the repo');
+      expect(entries.any((e) => e.path.endsWith('.bin')), isFalse);
+      for (final e in entries) {
+        expect(e.uri.pathSegments.last, '.gitkeep',
+            reason: 'unexpected file bundled in assets/models: ${e.path}');
+      }
     });
 
-    test('gemma_service init fails gracefully without model', () {
-      // GemmaService is never initialized automatically —
-      // it requires explicit init() which throws if model absent.
-      // The app falls back to RuleFallbackProvider.
-      expect(true, isTrue); // verified by code inspection
+    test('gemma_service init fails gracefully without model', () async {
+      // No .task is bundled, so init() must return false (never throw)
+      // and explain() must stay on the grounded rule fallback.
+      final ok = await GemmaService.instance.init();
+      expect(ok, isFalse);
+      expect(GemmaService.instance.isReady, isFalse);
+      final out = await GemmaService.instance.explain(
+          message: 'share your OTP now',
+          signals: const <SignalMatch>[],
+          verdict: Verdict.dangerous,
+          score: 90);
+      expect(out.llmUsed, isFalse,
+          reason: 'without a bundled model the app must never claim an '
+              'LLM produced the explanation');
     });
   });
 
@@ -256,38 +312,80 @@ void main() {
 
   group('PRIVACY AUDIT — no telemetry or analytics', () {
     test('no analytics packages in pubspec', () {
-      // No firebase_analytics, analytics, or similar packages.
-      expect(true, isTrue); // verified by pubspec inspection
+      final pubspec = _read('pubspec.yaml');
+      expect(
+          RegExp(r'^\s*(firebase.*|.*analytics|amplitude|mixpanel|'
+                  r'sentry|crashlytics|adjust|appsflyer)\s*:',
+                  caseSensitive: false, multiLine: true)
+              .hasMatch(pubspec),
+          isFalse,
+          reason: 'a telemetry package would break the privacy claim');
     });
 
     test('no network calls in scan pipeline', () {
-      // ScanPipeline.analyze() calls:
-      //   _engine.analyze() — local
-      //   AiRouter.instance.explain() — local (RuleFallbackProvider)
-      //   EventLog().log() — local shared_preferences
-      // No http.get, no socket, no fetch.
-      expect(true, isTrue);
+      final pipeline = _read('lib/analysis/scan_pipeline.dart');
+      for (final token in ['package:http', 'HttpClient', 'WebSocket', 'get(']) {
+        expect(pipeline.contains(token), isFalse,
+            reason: 'the automatic scan path must stay local (found: '
+                '$token)');
+      }
+      expect(pipeline, contains('_engine.analyze'),
+          reason: 'scan path must run the local deterministic engine');
     });
   });
 
   group('PRIVACY AUDIT — local-first architecture', () {
     test('shared_preferences is the only persistence mechanism', () {
-      // All local data stored via shared_preferences (on-device only).
-      // EventLog uses 'scamshield_events_v2' key.
-      // AppSettings uses 'scamshield_dark', 'scamshield_family', 'scamshield_contact'.
-      // No remote sync, no cloud backup.
-      expect(true, isTrue);
+      final pubspec = _read('pubspec.yaml');
+      expect(
+          RegExp(r'^\s*(sqflite|hive|isar|drift|flutter_secure_storage)\s*:',
+                  multiLine: true)
+              .hasMatch(pubspec),
+          isFalse,
+          reason: 'only shared_preferences may hold local state');
+      final events = _read('lib/events/threat_events.dart');
+      expect(events, contains('SharedPreferences'),
+          reason: 'EventLog must persist through SharedPreferences');
     });
 
-    test('EventLog.clear() removes all local data', () {
-      // User can delete all history locally.
-      expect(true, isTrue); // verified by code inspection
+    test('EventLog.clear() removes all local data', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final log = EventLog();
+      await log.clear();
+      await log.importJson(jsonEncode([
+        {
+          'id': 'e-clear',
+          'timestamp': DateTime.now().toIso8601String(),
+          'source': 'text',
+          'category': 'Test',
+          'risk': 'safe',
+          'score': 0,
+          'confidence': 0.0,
+          'signals': <String>[],
+          'evidenceCount': 0,
+          'preview': 'test',
+          'action': 'None',
+          'demo': false,
+          'family': '',
+        }
+      ]));
+      expect(jsonDecode(await log.exportJson()), isNotEmpty);
+      await log.clear();
+      expect(jsonDecode(await log.exportJson()), isEmpty,
+          reason: 'clear() must wipe every stored event');
     });
 
     test('EventLog.exportJson/importJson are user-initiated only', () {
-      // Clipboard sync requires explicit Export/Import action.
-      // No automatic sync, no background upload.
-      expect(true, isTrue);
+      // The automatic path (scan pipeline) must never call export/import,
+      // and no background timer may push history anywhere.
+      final pipeline = _read('lib/analysis/scan_pipeline.dart');
+      expect(pipeline.contains('importJson'), isFalse);
+      expect(pipeline.contains('exportJson'), isFalse);
+      final events = _read('lib/events/threat_events.dart');
+      expect(events.contains('Timer('), isFalse,
+          reason: 'no background timer may sync history');
+      expect(events.contains('package:http'), isFalse);
     });
   });
 }

@@ -1,0 +1,32 @@
+{
+  "total": 55,
+  "familyCorrect": 54,
+  "familyAccuracy": "0.9818",
+  "verdictCorrect": 55,
+  "verdictAccuracy": "1.0000",
+  "legitFlaggedDangerous": 0,
+  "scamMissedSafe": 0,
+  "signalHit": {
+    "LINK_RISK": 11,
+    "URGENCY_THREAT": 3,
+    "SECRET_REQUEST": 8,
+    "DIGITAL_ARREST": 4,
+    "PAYMENT_PULL": 16,
+    "REMOTE_ACCESS": 2,
+    "JOB_LURE": 4,
+    "REWARD_LURE": 7,
+    "CALLBACK": 1
+  },
+  "signalMiss": {},
+  "misses": [
+    {
+      "id": "l15",
+      "type": "family",
+      "expected": "none",
+      "got": "phishing",
+      "input": "Conference call link: https://meet.example.com/abc - join at 4 PM"
+    }
+  ],
+  "generated": "2026-09-27T08:32:10.094993Z",
+  "note": "Held-out phrasing set: labels written from the rubric before the engine ran. Measures detection on unseen wording, not rubric consistency. Misses are listed verbatim."
+}

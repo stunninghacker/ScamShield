@@ -1,0 +1,256 @@
+{
+  "total": 289,
+  "passed": 289,
+  "failed": 0,
+  "accuracy": "1.0000",
+  "precision": "1.0000",
+  "recall": "1.0000",
+  "f1": "1.0000",
+  "verdictAccuracy": "1.0000",
+  "falsePositives": 0,
+  "falseNegatives": 0,
+  "metricDefinitions": {
+    "accuracy": "family correct / total",
+    "precision": "macro over families predicted at least once",
+    "recall": "macro over ground-truth families in corpus",
+    "f1": "macro over ground-truth families in corpus",
+    "falsePositives": "legit (none) cases flagged as a scam family",
+    "falseNegatives": "scam cases missed (predicted none)",
+    "verdictAccuracy": "safe/suspicious/dangerous match / total"
+  },
+  "perFamily": [
+    {
+      "family": "phishing",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 36,
+      "fp": 0,
+      "fn": 0,
+      "tn": 253
+    },
+    {
+      "family": "bankingFraud",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 57,
+      "fp": 0,
+      "fn": 0,
+      "tn": 232
+    },
+    {
+      "family": "digitalArrest",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 21,
+      "fp": 0,
+      "fn": 0,
+      "tn": 268
+    },
+    {
+      "family": "jobScam",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 22,
+      "fp": 0,
+      "fn": 0,
+      "tn": 267
+    },
+    {
+      "family": "remoteAccess",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 22,
+      "fp": 0,
+      "fn": 0,
+      "tn": 267
+    },
+    {
+      "family": "deliveryScam",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 25,
+      "fp": 0,
+      "fn": 0,
+      "tn": 264
+    },
+    {
+      "family": "investmentScam",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 22,
+      "fp": 0,
+      "fn": 0,
+      "tn": 267
+    },
+    {
+      "family": "accountTakeover",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 16,
+      "fp": 0,
+      "fn": 0,
+      "tn": 273
+    },
+    {
+      "family": "Genuine",
+      "precision": "1.0000",
+      "recall": "1.0000",
+      "f1": "1.0000",
+      "tp": 68,
+      "fp": 0,
+      "fn": 0,
+      "tn": 221
+    }
+  ],
+  "confusionMatrix": [
+    {
+      "row": "phishing",
+      "values": [
+        36,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "bankingFraud",
+      "values": [
+        0,
+        57,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "digitalArrest",
+      "values": [
+        0,
+        0,
+        21,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "jobScam",
+      "values": [
+        0,
+        0,
+        0,
+        22,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "remoteAccess",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        22,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "deliveryScam",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        25,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "investmentScam",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        22,
+        0,
+        0
+      ]
+    },
+    {
+      "row": "accountTakeover",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        16,
+        0
+      ]
+    },
+    {
+      "row": "none",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        68
+      ]
+    }
+  ],
+  "familyNames": [
+    "phishing",
+    "bankingFraud",
+    "digitalArrest",
+    "jobScam",
+    "remoteAccess",
+    "deliveryScam",
+    "investmentScam",
+    "accountTakeover",
+    "none"
+  ],
+  "failures": [],
+  "generated": "2026-09-27T08:32:10.615667Z",
+  "engine": "ScamEngine (deterministic, hand-tuned weights)",
+  "note": "Metrics computed by test/eval_harness_test.dart against a hand-labeled corpus (289 cases) using the documented verdict rubric. Diagnostic/regression numbers, not an external benchmark. Engine changes are limited to reported bug fixes and weight-tier calibration to that rubric."
+}
